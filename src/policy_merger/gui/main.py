@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import (
     QTableView,
     QToolBar,
     QMessageBox,
+    QDialog,
 )
 from PyQt6.QtGui import QAction
 from PyQt6.QtCore import QStandardPaths
@@ -104,7 +105,6 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "No data", "Nothing to save")
             return
         import json
-            from policy_merger.models import PolicyRule
         rows = [r.raw for r in self._model._rules]
         data = {
             "version": 1,
@@ -161,9 +161,8 @@ class MainWindow(QMainWindow):
         out, _ = QFileDialog.getSaveFileName(self, "Save merged CSV", os.getcwd(), "CSV Files (*.csv)")
         if not out:
             return
-        # Build PolicyRule list from model's internal data
-        from ..models import PolicyRule
-        rules: List[PolicyRule] = self._model._rules  # read-only usage here
+        # Build list from model's internal data
+        rules = self._model._rules  # read-only usage here
         try:
             write_merged_csv(out, rules, preferred_columns=self._model._columns)
             QMessageBox.information(self, "Exported", f"Wrote {len(rules)} rules to {out}")
@@ -206,7 +205,7 @@ class MainWindow(QMainWindow):
         if removed_ids:
             # Rebuild model rules excluding removed
             remaining = [r for r in self._model._rules if id(r) not in removed_ids]
-            from ..models import PolicySet
+            from policy_merger.models import PolicySet
             ps = PolicySet(source_fortigate="MERGED", columns=self._model._columns)
             for r in remaining:
                 ps.add_rule(r.raw)
