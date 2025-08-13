@@ -7,39 +7,39 @@ This document outlines the phased development plan for the FortiManager Policy M
 This phase focuses on building the essential backend functionality. We will start with a command-line interface (CLI) to test and validate the core logic before building the GUI.
 
 *   **Step 1.1: Project Initialization & Setup**
-    *   [ ] Research & References (Context7 + web): Confirm Python version policy, virtual environment tooling, packaging approach, project layout conventions, pre-commit/lint choices; record links and decisions in `docs/REFERENCES.md`.
+    *   [x] Research & References (Context7 + web): Confirm Python version policy, virtual environment tooling, packaging approach, project layout conventions, pre-commit/lint choices; record links and decisions in `docs/REFERENCES.md`.
     *   [x] Initialize Git repository.
     *   [x] Create initial documentation files (`PLAN.md`, `TECH_SPECS.md`, `README.md`, `CHANGELOG.md`).
     *   [x] Create `.gitignore` for Python projects.
     *   [x] Establish commit discipline: commit at the end of each step with a descriptive message and update `CHANGELOG.md`.
-    *   [ ] Create project structure (e.g., `src` directory).
-    *   [ ] Setup Python virtual environment and `requirements.txt`.
+    *   [x] Create project structure (e.g., `src` directory).
+    *   [x] Setup Python virtual environment and `requirements.txt`.
     *   [x] Make the first commit.
 
 *   **Step 1.2: CSV Parsing and Data Modeling**
-    *   [ ] Research & References (Context7 + web): Review FortiManager CSV export schema, field semantics, quoting/encoding, large-file handling with Pandas; capture examples and pitfalls in `docs/REFERENCES.md`.
-    *   [ ] Analyze the structure of the sample CSV files from the `exports` folder.
+    *   [x] Research & References (Context7 + web): Review FortiManager CSV export schema, field semantics, quoting/encoding, large-file handling with Pandas; capture examples and pitfalls in `docs/REFERENCES.md`.
+    *   [x] Analyze the structure of the sample CSV files from the `exports` folder.
     *   [x] Develop a robust CSV parsing module (using Pandas) to read policy data.
     *   [x] Define Python classes/data structures to represent firewall policies, address objects, services, etc.
     *   [x] Extract the source FortiGate name from the filename for each imported policy set.
 
 *   **Step 1.3: Policy Comparison (Diffing) Engine**
-    *   [ ] Research & References (Context7 + web): Survey diffing strategies for tabular rulesets (hashing, bucketing, Jaccard similarity for multi-value fields), choose thresholds; document references in `docs/REFERENCES.md`.
+    *   [x] Research & References (Context7 + web): Survey diffing strategies for tabular rulesets (hashing, bucketing, Jaccard similarity for multi-value fields), choose thresholds; document references in `docs/REFERENCES.md`.
     *   [x] Implement a function to compare two policy rules and identify differences.
     *   [x] Develop logic to find "similar" rules based on predefined criteria (e.g., same source/destination interfaces, similar services).
-    *   [ ] The engine should be able to pinpoint specific field-level differences (e.g., different destination IPs).
+    *   [x] The engine should be able to pinpoint specific field-level differences (e.g., different destination IPs).
 
 *   **Step 1.4: Interactive Merging Logic (CLI)**
-    *   [ ] Research & References (Context7 + web): Review best practices for CLI prompts and interactive flows (e.g., `questionary`/`inquirer`), accessibility, and audit trails; log selected approach in `docs/REFERENCES.md`.
+    *   [x] Research & References (Context7 + web): Review best practices for CLI prompts and interactive flows (e.g., `questionary`/`inquirer`), accessibility, and audit trails; log selected approach in `docs/REFERENCES.md`.
     *   [x] Create a CLI-based interaction loop to present conflicts/merge-opportunities to the user.
     *   [x] Implement the core merge actions:
         *   **Keep:** Choose one rule and discard the other.
         *   **Keep Both (Rename):** Keep both rules, appending a suffix to one to resolve name conflicts.
         *   **Merge Fields:** Combine values from specific fields (e.g., destination IPs) into a single rule.
-    *   [ ] Ensure the source FortiGate name is always displayed in user prompts for context.
+    *   [x] Ensure the source FortiGate name is always displayed in user prompts for context.
 
 *   **Step 1.5: Output Generation**
-    *   [ ] Research & References (Context7 + web): Verify CSV writing best practices (quoting, line endings, encodings), FortiManager re-import expectations, and Excel compatibility; record findings in `docs/REFERENCES.md`.
+    *   [x] Research & References (Context7 + web): Verify CSV writing best practices (quoting, line endings, encodings), FortiManager re-import expectations, and Excel compatibility; record findings in `docs/REFERENCES.md`.
     *   [x] Implement functionality to write the final, merged policy set to a new CSV file.
     *   [x] Ensure the output format is clean and consistent.
 

@@ -11,6 +11,7 @@ A living log of references used during development.
   - Encoding and errors handling — `encoding`, `encoding_errors`
   - Engine selection — `engine='python'` for irregular CSVs
   - Preserving strings — `dtype=str`, `keep_default_na=False`
+  - String dtype future inference — `pd.options.future.infer_string` notes (pandas 2.1+)
 
 ## FortiManager CSV format context
 
@@ -20,4 +21,9 @@ A living log of references used during development.
 
 - CLI UX patterns: simple text prompts for prototype; consider `questionary` for enhanced experience later. Keep prompts concise and always show `sourceFortiGateTag`.
 - Deduplication strategy: identity signature built from key fields; batch merge CLI removes duplicates and writes merged CSV.
+
+## Phase 1, Step 1.1 (Init & Setup)
+
+- Python 3.10+ baseline; venv via `python -m venv`; pin core deps in `requirements.txt`.
+- Packaging research noted for later (PyInstaller profiles per OS).
 - Observed export sample headers include `policyid` and numerous UTM/profile fields; some preamble lines like `Firewall Policy` precede the header. The loader searches for the line containing `policyid` and uses that as header.
