@@ -95,3 +95,27 @@ This is a major feature for a future release, converting the merged policy into 
         *   VIPs and IP Pools
         *   Firewall Policies
     *   [ ] Add a feature to export the generated script to a `.txt` or `.scr` file.
+
+## Phase 3.5: UX Redesign & Guided Merge (New)
+
+This phase focuses on modernizing the UI/UX and introducing a guided, confirmation-based merge workflow to reduce manual comparisons.
+
+*   **Step 3.5.1: Research & Design**
+    *   [ ] Research & References (Context7 + web): Evaluate `QFluentWidgets` (PyQt6) for modern Fluent UI components; study guided review patterns and progressive disclosure for merge workflows; capture references in `docs/REFERENCES.md`.
+    *   [ ] Draft UX flows: compact rule list (identity fields only), per-field chips for diffs, one-click actions (keep A/B, keep both rename, merge fields) with batch confirmation.
+
+*   **Step 3.5.2: Backend Auto-dedupe & Suggestions**
+    *   [ ] On import, auto-deduplicate identical rules; auto-group similar rules by identity keys; precompute suggested actions (keep/merge) to minimize clicks.
+    *   [ ] Provide batch actions and a single confirmation dialog per group.
+
+*   **Step 3.5.3: UI Implementation (Fluent UI)**
+    *   [ ] Replace toolbar/table shell with a Fluent window (navigation + pages): Import, Review, Export.
+    *   [ ] Implement compact review list with expandable rows and highlighted per-field diffs.
+    *   [ ] Add guided tips (TeachingTip/Flyout) and theme support (light/dark, accent color).
+
+*   **Step 3.5.4: Polish & Theming**
+    *   [ ] Add app icon, logo placeholder, and consistent spacing/typography.
+    *   [ ] Ensure cross-platform behavior (Windows/macOS/Linux) with fallbacks if needed.
+
+*   **Step 3.5.5: QA & Feedback Loop**
+    *   [ ] Gather user feedback; iterate on copy, spacing, density settings, and keyboard shortcuts.

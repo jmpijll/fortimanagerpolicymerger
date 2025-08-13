@@ -56,6 +56,12 @@ A living log of references used during development.
 - macOS signing/notarization overview: create Developer ID Application certificate, enable hardened runtime, add entitlements if needed; notarize via `xcrun notarytool`.
 - Windows packaging considerations: disable UPX to avoid AV false positives; prefer onefolder for faster startup if needed.
 
+## Phase 3.5 (UX Redesign & Guided Merge)
+
+- Modern Qt UI (Context7): QFluentWidgets for PyQt6 — `/zhiyiyo/qfluentwidgets-docs`, install `PyQt6-Fluent-Widgets`; use `FluentWindow`/`MSFluentWindow`, Navigation, icons, theming.
+- TeachingTip/Flyout patterns (Context7): lightweight guidance and progressive disclosure — `/zhiyiyo/qfluentwidgets-docs` components.
+- UX patterns (web): guided review flows for bulk actions, batch confirmations, and progressive disclosure to reduce cognitive load.
+- Compact rule presentation: use essential “identity” fields and per-field chips; expand-on-demand for full raw CSV fields.
 ## Phase 3, Step 3.1 (Session Management)
 
 - Qt Standard Paths (Context7): `QStandardPaths::writableLocation(AppDataLocation)` for default save path — `/context7/qt-6-docs`
