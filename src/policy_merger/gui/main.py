@@ -15,13 +15,13 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtGui import QAction
 from PyQt6.QtCore import QStandardPaths
 
-from ..csv_loader import read_policy_csv
-from ..diff_engine import find_similar_rules
-from ..merger import write_merged_csv, merge_fields
-from .models import PolicyTableModel
-from .merge_dialog import MergeDialog
-from .diff_dialog import DiffDialog
-from ..logging_config import configure_logging
+from policy_merger.csv_loader import read_policy_csv
+from policy_merger.diff_engine import find_similar_rules
+from policy_merger.merger import write_merged_csv, merge_fields
+from policy_merger.gui.models import PolicyTableModel
+from policy_merger.gui.merge_dialog import MergeDialog
+from policy_merger.gui.diff_dialog import DiffDialog
+from policy_merger.logging_config import configure_logging
 
 
 class MainWindow(QMainWindow):
@@ -104,7 +104,7 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "No data", "Nothing to save")
             return
         import json
-        from ..models import PolicyRule
+            from policy_merger.models import PolicyRule
         rows = [r.raw for r in self._model._rules]
         data = {
             "version": 1,
@@ -138,7 +138,7 @@ class MainWindow(QMainWindow):
                 data = json.load(f)
             cols = data.get("columns", [])
             rules = data.get("rules", [])
-            from ..models import PolicySet
+            from policy_merger.models import PolicySet
             ps = PolicySet(source_fortigate="SESSION", columns=cols)
             for row in rules:
                 ps.add_rule(row)
@@ -149,7 +149,7 @@ class MainWindow(QMainWindow):
 
     def _about(self) -> None:
         try:
-            from .. import __version__
+            from policy_merger import __version__
         except Exception:
             __version__ = "dev"
         QMessageBox.information(self, "About", f"Policy Merger\nVersion {__version__}")

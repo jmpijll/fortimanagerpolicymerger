@@ -4,9 +4,9 @@ from typing import Dict, Tuple
 
 from PyQt6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QVBoxLayout, QPushButton
 
-from ..diff_engine import compare_rules
-from ..models import PolicyRule
-from ..merger import merge_fields
+from policy_merger.diff_engine import compare_rules
+from policy_merger.models import PolicyRule
+from policy_merger.merger import merge_fields
 
 
 class MergeDialog(QDialog):

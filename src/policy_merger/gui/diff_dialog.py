@@ -6,7 +6,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QTableWidget, QTableWidgetItem, QVBoxLayout
 
-from ..models import PolicyRule
+from policy_merger.models import PolicyRule
 
 
 class DiffDialog(QDialog):
