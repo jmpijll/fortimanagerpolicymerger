@@ -79,8 +79,8 @@ This phase adds features that enhance the user experience and application robust
     *   [ ] Conduct manual testing of the GUI across different platforms.
 
 *   **Step 3.3: Logging**
-    *   [ ] Research & References (Context7 + web): Compare logging libraries/formatters (stdlib logging, structlog), rotation strategies, and privacy controls; list references in `docs/REFERENCES.md`.
-    *   [ ] Implement logging to record user actions and application events for easier debugging.
+    *   [x] Research & References (Context7 + web): Compare logging libraries/formatters (stdlib logging, structlog), rotation strategies, and privacy controls; list references in `docs/REFERENCES.md`.
+    *   [x] Implement logging to record user actions and application events for easier debugging.
 
 ## Phase 4: FortiGate CLI Script Generation
 

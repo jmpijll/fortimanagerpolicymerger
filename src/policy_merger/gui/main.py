@@ -21,6 +21,7 @@ from ..merger import write_merged_csv, merge_fields
 from .models import PolicyTableModel
 from .merge_dialog import MergeDialog
 from .diff_dialog import DiffDialog
+from ..logging_config import configure_logging
 
 
 class MainWindow(QMainWindow):
@@ -202,6 +203,7 @@ class MainWindow(QMainWindow):
 
 
 def run() -> None:
+    configure_logging()
     app = QApplication(sys.argv)
     w = MainWindow()
     w.resize(1200, 700)
