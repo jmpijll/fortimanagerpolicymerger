@@ -19,6 +19,7 @@ from ..diff_engine import find_similar_rules
 from ..merger import write_merged_csv, merge_fields
 from .models import PolicyTableModel
 from .merge_dialog import MergeDialog
+from .diff_dialog import DiffDialog
 
 
 class MainWindow(QMainWindow):
@@ -50,6 +51,10 @@ class MainWindow(QMainWindow):
         resolve_action.triggered.connect(self._resolve_suggestions)
         tb.addAction(resolve_action)
 
+        compare_action = QAction("Compare Selected", self)
+        compare_action.triggered.connect(self._compare_selected)
+        tb.addAction(compare_action)
+
     def _open_files(self) -> None:
         files, _ = QFileDialog.getOpenFileNames(
             self,
@@ -63,6 +68,20 @@ class MainWindow(QMainWindow):
             policy_sets = [read_policy_csv(path) for path in files]
             self._model.set_policy_sets(policy_sets)
             QMessageBox.information(self, "Loaded", f"Loaded {sum(len(ps.rules) for ps in policy_sets)} rules from {len(files)} files")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", str(e))
+
+    def _compare_selected(self) -> None:
+        sel = self._table.selectionModel().selectedRows()
+        if len(sel) != 2:
+            QMessageBox.information(self, "Select two rows", "Please select exactly two rows to compare")
+            return
+        rows = [idx.row() for idx in sel]
+        try:
+            rule_a = self._model._rules[rows[0]]
+            rule_b = self._model._rules[rows[1]]
+            dlg = DiffDialog(rule_a, rule_b, self._model._columns, self)
+            dlg.exec()
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
 

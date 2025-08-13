@@ -45,6 +45,10 @@ A living log of references used during development.
   - QFileDialog for export
 - Qt Model/View guide (Context7): `/context7/qt-6-docs`
   - Selection models and reacting to selection changes
+  
+### Diff view highlighting
+- PyQt6 item coloring (Context7): `QTableWidgetItem.setBackground`, `QColor` API — `/context7/www_riverbankcomputing_com-static-docs-pyqt6-module_index.html`
+  - Use background/foreground brushes to highlight differing cells
 
 ## Phase 2, Step 2.3 (Integration and Packaging)
 
