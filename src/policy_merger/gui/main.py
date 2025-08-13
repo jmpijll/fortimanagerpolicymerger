@@ -218,7 +218,9 @@ def run() -> None:
     w = MainWindow()
     w.resize(1200, 700)
     w.show()
-    sys.exit(app.exec())
+    code = app.exec()
+    # Use os._exit to bypass Python/Qt teardown that can cause macOS plugin double-free on exit
+    os._exit(code)
 
 
 if __name__ == "__main__":
