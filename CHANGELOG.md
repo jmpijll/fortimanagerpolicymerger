@@ -15,3 +15,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 -   Created `README.md` with project overview.
 -   Created `CHANGELOG.md` to track changes.
 -   Initialized Git repository for version control.
+ -   Added research substeps across all plan steps requiring Context7 and web references; will log sources in `docs/REFERENCES.md`.
