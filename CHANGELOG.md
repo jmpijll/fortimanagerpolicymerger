@@ -16,3 +16,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 -   Created `CHANGELOG.md` to track changes.
 -   Initialized Git repository for version control.
  -   Added research substeps across all plan steps requiring Context7 and web references; will log sources in `docs/REFERENCES.md`.
+-   Implemented CSV loader with header detection and FortiGate tag extraction; initial data models.
+-   Implemented diff engine (identity grouping, Jaccard similarity) and merger utilities.
+-   Added CLI tools: summary and interactive merge workflow (Phase 1 prototype).

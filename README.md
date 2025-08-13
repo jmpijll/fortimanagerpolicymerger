@@ -53,7 +53,19 @@ The end goal is to produce a unified policy set that can be re-imported or used 
 
 ## Usage
 
-*(This section will be updated with instructions and screenshots once the GUI is developed)*
+### CLI (temporary)
+
+Run a summary across CSVs:
+```bash
+PYTHONPATH=src python -m policy_merger.cli exports/RG-ASA-LZ-FW-20250813-065650.csv
+```
+
+Run the interactive merger and write output:
+```bash
+PYTHONPATH=src python -m policy_merger.interactive_cli \
+  exports/RG-ASA-LZ-FW-20250813-065650.csv exports/RG-NLD-CAP-FW-01-20250813-062755.csv \
+  --out merged/merged_policies.csv
+```
 
 ## License
 

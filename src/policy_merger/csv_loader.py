@@ -32,12 +32,15 @@ def read_policy_csv(path: str, encoding: str = "utf-8") -> PolicySet:
     header_row = find_header_row(path, encoding=encoding)
     df = pd.read_csv(
         path,
-        header=header_row,
+        header=0,  # header row is the first row after skipped preamble
+        skiprows=header_row,
         dtype=str,
         keep_default_na=False,
         na_values=[],
         encoding=encoding,
         engine="python",
+        sep=",",
+        quotechar='"',
     )
     df.columns = [c.strip() for c in df.columns]
 

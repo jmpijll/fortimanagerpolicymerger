@@ -19,20 +19,20 @@ This phase focuses on building the essential backend functionality. We will star
 *   **Step 1.2: CSV Parsing and Data Modeling**
     *   [ ] Research & References (Context7 + web): Review FortiManager CSV export schema, field semantics, quoting/encoding, large-file handling with Pandas; capture examples and pitfalls in `docs/REFERENCES.md`.
     *   [ ] Analyze the structure of the sample CSV files from the `exports` folder.
-    *   [ ] Develop a robust CSV parsing module (using Pandas) to read policy data.
-    *   [ ] Define Python classes/data structures to represent firewall policies, address objects, services, etc.
-    *   [ ] Extract the source FortiGate name from the filename for each imported policy set.
+    *   [x] Develop a robust CSV parsing module (using Pandas) to read policy data.
+    *   [x] Define Python classes/data structures to represent firewall policies, address objects, services, etc.
+    *   [x] Extract the source FortiGate name from the filename for each imported policy set.
 
 *   **Step 1.3: Policy Comparison (Diffing) Engine**
     *   [ ] Research & References (Context7 + web): Survey diffing strategies for tabular rulesets (hashing, bucketing, Jaccard similarity for multi-value fields), choose thresholds; document references in `docs/REFERENCES.md`.
-    *   [ ] Implement a function to compare two policy rules and identify differences.
-    *   [ ] Develop logic to find "similar" rules based on predefined criteria (e.g., same source/destination interfaces, similar services).
+    *   [x] Implement a function to compare two policy rules and identify differences.
+    *   [x] Develop logic to find "similar" rules based on predefined criteria (e.g., same source/destination interfaces, similar services).
     *   [ ] The engine should be able to pinpoint specific field-level differences (e.g., different destination IPs).
 
 *   **Step 1.4: Interactive Merging Logic (CLI)**
     *   [ ] Research & References (Context7 + web): Review best practices for CLI prompts and interactive flows (e.g., `questionary`/`inquirer`), accessibility, and audit trails; log selected approach in `docs/REFERENCES.md`.
-    *   [ ] Create a CLI-based interaction loop to present conflicts/merge-opportunities to the user.
-    *   [ ] Implement the core merge actions:
+    *   [x] Create a CLI-based interaction loop to present conflicts/merge-opportunities to the user.
+    *   [x] Implement the core merge actions:
         *   **Keep:** Choose one rule and discard the other.
         *   **Keep Both (Rename):** Keep both rules, appending a suffix to one to resolve name conflicts.
         *   **Merge Fields:** Combine values from specific fields (e.g., destination IPs) into a single rule.
