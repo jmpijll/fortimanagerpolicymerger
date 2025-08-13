@@ -45,3 +45,9 @@ A living log of references used during development.
   - QFileDialog for export
 - Qt Model/View guide (Context7): `/context7/qt-6-docs`
   - Selection models and reacting to selection changes
+
+## Phase 2, Step 2.3 (Integration and Packaging)
+
+- PyInstaller usage with PyQt6: best practices for hidden imports/collecting data; `--windowed`, `--onefile`, `--clean`, `--noconfirm`; consider `--collect-all PyQt6` for resource collection.
+- macOS signing/notarization overview: create Developer ID Application certificate, enable hardened runtime, add entitlements if needed; notarize via `xcrun notarytool`.
+- Windows packaging considerations: disable UPX to avoid AV false positives; prefer onefolder for faster startup if needed.
