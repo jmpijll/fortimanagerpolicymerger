@@ -36,3 +36,12 @@ A living log of references used during development.
 - Qt 6 Model/View programming guide (Context7): `/context7/qt-6-docs`
   - Subclassing QAbstractTableModel: implement rowCount, columnCount, data, headerData; emit dataChanged/layoutChanged
   - Large table best practices
+
+## Phase 2, Step 2.2 (GUI Implementation)
+
+- PyQt6 dialogs and widgets (Context7): `/context7/www_riverbankcomputing_com-static-docs-pyqt6-module_index.html`
+  - QDialog, QDialogButtonBox for modal decisions
+  - QTableView, selection model, QAction for commands
+  - QFileDialog for export
+- Qt Model/View guide (Context7): `/context7/qt-6-docs`
+  - Selection models and reacting to selection changes

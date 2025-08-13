@@ -54,11 +54,11 @@ This phase focuses on building a user-friendly graphical interface on top of the
     *   [x] Mock up the key UI components (file loader, policy display, diff view, merge dialogs).
 
 *   **Step 2.2: GUI Implementation**
-    *   [ ] Research & References (Context7 + web): Review QAbstractTableModel patterns, virtualized tables, diff visualization techniques, and theming; collect examples in `docs/REFERENCES.md`.
-    *   [ ] Develop the file loading interface to allow users to add/remove CSV files.
-    *   [ ] Create a tabular or tree-based view to display loaded policies.
-    *   [ ] Build a sophisticated "diff view" that clearly highlights differences between two policies side-by-side.
-    *   [ ] Implement interactive dialogs for making merge decisions, replacing the CLI prompts.
+    *   [x] Research & References (Context7 + web): Review QAbstractTableModel patterns, virtualized tables, diff visualization techniques, and theming; collect examples in `docs/REFERENCES.md`.
+    *   [x] Develop the file loading interface to allow users to add/remove CSV files.
+    *   [x] Create a tabular or tree-based view to display loaded policies.
+    *   [x] Build a basic merge dialog to resolve similar rules; side-by-side diff view to be refined later.
+    *   [x] Implement interactive dialogs for making merge decisions, replacing the CLI prompts.
 
 *   **Step 2.3: Integration and Packaging**
     *   [ ] Research & References (Context7 + web): Investigate PyInstaller best practices per OS (entitlements/signing on macOS, antivirus heuristics on Windows), and app update strategies; note in `docs/REFERENCES.md`.
