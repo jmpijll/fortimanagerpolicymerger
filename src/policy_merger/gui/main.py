@@ -13,6 +13,7 @@ from PyQt6.QtWidgets import (
     QMessageBox,
 )
 from PyQt6.QtGui import QAction
+from PyQt6.QtCore import QStandardPaths
 
 from ..csv_loader import read_policy_csv
 from ..diff_engine import find_similar_rules
@@ -55,6 +56,14 @@ class MainWindow(QMainWindow):
         compare_action.triggered.connect(self._compare_selected)
         tb.addAction(compare_action)
 
+        save_session_action = QAction("Save Session", self)
+        save_session_action.triggered.connect(self._save_session)
+        tb.addAction(save_session_action)
+
+        load_session_action = QAction("Load Session", self)
+        load_session_action.triggered.connect(self._load_session)
+        tb.addAction(load_session_action)
+
     def _open_files(self) -> None:
         files, _ = QFileDialog.getOpenFileNames(
             self,
@@ -82,6 +91,54 @@ class MainWindow(QMainWindow):
             rule_b = self._model._rules[rows[1]]
             dlg = DiffDialog(rule_a, rule_b, self._model._columns, self)
             dlg.exec()
+        except Exception as e:
+            QMessageBox.critical(self, "Error", str(e))
+
+    def _save_session(self) -> None:
+        if self._model.rowCount() == 0:
+            QMessageBox.information(self, "No data", "Nothing to save")
+            return
+        import json
+        from ..models import PolicyRule
+        rows = [r.raw for r in self._model._rules]
+        data = {
+            "version": 1,
+            "columns": self._model._columns,
+            "rules": rows,
+        }
+        base_dir = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation) or ""
+        default_path = base_dir + "/session.json"
+        from PyQt6.QtWidgets import QFileDialog
+        path, _ = QFileDialog.getSaveFileName(self, "Save Session", default_path, "JSON Files (*.json);;All Files (*)")
+        if not path:
+            return
+        try:
+            # ensure dir exists
+            import os, pathlib
+            pathlib.Path(os.path.dirname(path) or ".").mkdir(parents=True, exist_ok=True)
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+            QMessageBox.information(self, "Saved", f"Session saved to {path}")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", str(e))
+
+    def _load_session(self) -> None:
+        from PyQt6.QtWidgets import QFileDialog
+        path, _ = QFileDialog.getOpenFileName(self, "Load Session", "", "JSON Files (*.json);;All Files (*)")
+        if not path:
+            return
+        import json
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            cols = data.get("columns", [])
+            rules = data.get("rules", [])
+            from ..models import PolicySet
+            ps = PolicySet(source_fortigate="SESSION", columns=cols)
+            for row in rules:
+                ps.add_rule(row)
+            self._model.set_policy_sets([ps])
+            QMessageBox.information(self, "Loaded", f"Loaded session from {path}")
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
 

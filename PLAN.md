@@ -70,8 +70,8 @@ This phase focuses on building a user-friendly graphical interface on top of the
 This phase adds features that enhance the user experience and application robustness.
 
 *   **Step 3.1: Session Management**
-    *   [ ] Research & References (Context7 + web): Evaluate session formats (JSON/YAML), file-locking and autosave strategies, cross-platform user data dirs; document in `docs/REFERENCES.md`.
-    *   [ ] Allow users to save their merging session (loaded files, decisions made) and resume later.
+    *   [x] Research & References (Context7 + web): Evaluate session formats (JSON/YAML), file-locking and autosave strategies, cross-platform user data dirs; document in `docs/REFERENCES.md`.
+    *   [x] Allow users to save their merging session (loaded files, decisions made) and resume later.
 
 *   **Step 3.2: Testing and Quality Assurance**
     *   [ ] Research & References (Context7 + web): Identify testing frameworks and tools (pytest, hypothesis for property tests, Qt test utilities), cross-platform CI options; record in `docs/REFERENCES.md`.

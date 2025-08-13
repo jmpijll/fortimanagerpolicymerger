@@ -55,3 +55,12 @@ A living log of references used during development.
 - PyInstaller usage with PyQt6: best practices for hidden imports/collecting data; `--windowed`, `--onefile`, `--clean`, `--noconfirm`; consider `--collect-all PyQt6` for resource collection.
 - macOS signing/notarization overview: create Developer ID Application certificate, enable hardened runtime, add entitlements if needed; notarize via `xcrun notarytool`.
 - Windows packaging considerations: disable UPX to avoid AV false positives; prefer onefolder for faster startup if needed.
+
+## Phase 3, Step 3.1 (Session Management)
+
+- Qt Standard Paths (Context7): `QStandardPaths::writableLocation(AppDataLocation)` for default save path — `/context7/qt-6-docs`
+- QFileDialog save/open patterns and filters (Context7): `/context7/qt-6-docs`
+
+## Phase 3, Step 3.3 (Logging)
+
+- Python logging (web): use RotatingFileHandler, timestamps, and per-run session IDs; store under `logs/app.log`.
