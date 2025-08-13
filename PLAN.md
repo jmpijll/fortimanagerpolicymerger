@@ -9,10 +9,11 @@ This phase focuses on building the essential backend functionality. We will star
 *   **Step 1.1: Project Initialization & Setup**
     *   [x] Initialize Git repository.
     *   [x] Create initial documentation files (`PLAN.md`, `TECH_SPECS.md`, `README.md`, `CHANGELOG.md`).
-    *   [ ] Create `.gitignore` for Python projects.
+    *   [x] Create `.gitignore` for Python projects.
+    *   [x] Establish commit discipline: commit at the end of each step with a descriptive message and update `CHANGELOG.md`.
     *   [ ] Create project structure (e.g., `src` directory).
     *   [ ] Setup Python virtual environment and `requirements.txt`.
-    *   [ ] Make the first commit.
+    *   [x] Make the first commit.
 
 *   **Step 1.2: CSV Parsing and Data Modeling**
     *   [ ] Analyze the structure of the sample CSV files from the `exports` folder.

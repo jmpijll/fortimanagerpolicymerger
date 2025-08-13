@@ -44,10 +44,17 @@ The end goal is to produce a unified policy set that can be re-imported or used 
     pip install -r requirements.txt
     ```
 
+## Roadmap and Docs
+
+-   Development plan: see `PLAN.md`.
+-   Technical details and architecture: see `TECH_SPECS.md`.
+-   Changes over time: see `CHANGELOG.md`.
+-   Sample input CSVs are in `exports/`.
+
 ## Usage
 
 *(This section will be updated with instructions and screenshots once the GUI is developed)*
 
 ## License
 
-Distributed under the MIT License. See `LICENSE.txt` for more information.
+Distributed under the MIT License. See `LICENSE` for more information.
