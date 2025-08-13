@@ -18,6 +18,7 @@ export PYTHONPATH="$ROOT_DIR/src"
   --noconfirm \
   --clean \
   --windowed \
+  --qt-plugins platforms,styles,imageformats \
   --name PolicyMerger \
   "$ROOT_DIR/src/$APP_ENTRY"
 
