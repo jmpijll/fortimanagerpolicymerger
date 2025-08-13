@@ -67,6 +67,13 @@ PYTHONPATH=src python -m policy_merger.interactive_cli \
   --out merged/merged_policies.csv
 ```
 
+Non-interactive batch merge (deduplicate identical rules):
+```bash
+PYTHONPATH=src python -m policy_merger.batch_merge \
+  exports/RG-ASA-LZ-FW-20250813-065650.csv exports/RG-NLD-CAP-FW-01-20250813-062755.csv \
+  --out merged/batch_merged.csv
+```
+
 ## License
 
 Distributed under the MIT License. See `LICENSE` for more information.

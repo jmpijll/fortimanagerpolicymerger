@@ -40,8 +40,8 @@ This phase focuses on building the essential backend functionality. We will star
 
 *   **Step 1.5: Output Generation**
     *   [ ] Research & References (Context7 + web): Verify CSV writing best practices (quoting, line endings, encodings), FortiManager re-import expectations, and Excel compatibility; record findings in `docs/REFERENCES.md`.
-    *   [ ] Implement functionality to write the final, merged policy set to a new CSV file.
-    *   [ ] Ensure the output format is clean and consistent.
+    *   [x] Implement functionality to write the final, merged policy set to a new CSV file.
+    *   [x] Ensure the output format is clean and consistent.
 
 ## Phase 2: Graphical User Interface (GUI)
 

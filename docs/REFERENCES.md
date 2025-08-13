@@ -14,4 +14,10 @@ A living log of references used during development.
 
 ## FortiManager CSV format context
 
+- CSV writing: use `DataFrame.to_csv(index=False, encoding='utf-8', quotechar='"')` as default; preserve input columns order where possible. Context7 pandas docs confirm parameters.
+
+## Phase 1, Step 1.4-1.5 (CLI and Output)
+
+- CLI UX patterns: simple text prompts for prototype; consider `questionary` for enhanced experience later. Keep prompts concise and always show `sourceFortiGateTag`.
+- Deduplication strategy: identity signature built from key fields; batch merge CLI removes duplicates and writes merged CSV.
 - Observed export sample headers include `policyid` and numerous UTM/profile fields; some preamble lines like `Firewall Policy` precede the header. The loader searches for the line containing `policyid` and uses that as header.
