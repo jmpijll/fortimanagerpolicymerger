@@ -27,3 +27,12 @@ A living log of references used during development.
 - Python 3.10+ baseline; venv via `python -m venv`; pin core deps in `requirements.txt`.
 - Packaging research noted for later (PyInstaller profiles per OS).
 - Observed export sample headers include `policyid` and numerous UTM/profile fields; some preamble lines like `Firewall Policy` precede the header. The loader searches for the line containing `policyid` and uses that as header.
+
+## Phase 2, Step 2.1 (UI/UX Design and Framework Setup)
+
+- PyQt6 official docs (Context7): `/context7/www_riverbankcomputing_com-static-docs-pyqt6-module_index.html`
+  - QMainWindow, QApplication, QAction, QFileDialog usage patterns
+  - QAbstractTableModel and QTableView model/view patterns
+- Qt 6 Model/View programming guide (Context7): `/context7/qt-6-docs`
+  - Subclassing QAbstractTableModel: implement rowCount, columnCount, data, headerData; emit dataChanged/layoutChanged
+  - Large table best practices

@@ -74,6 +74,12 @@ PYTHONPATH=src python -m policy_merger.batch_merge \
   --out merged/batch_merged.csv
 ```
 
+### GUI (prototype)
+
+```bash
+PYTHONPATH=src .venv/bin/python -m policy_merger.gui.main
+```
+
 ## License
 
 Distributed under the MIT License. See `LICENSE` for more information.

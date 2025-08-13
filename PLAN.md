@@ -48,10 +48,10 @@ This phase focuses on building the essential backend functionality. We will star
 This phase focuses on building a user-friendly graphical interface on top of the core logic.
 
 *   **Step 2.1: UI/UX Design and Framework Setup**
-    *   [ ] Research & References (Context7 + web): Compare PyQt6 patterns (Model/View, QTableView, item delegates), UX patterns for diff/merge tools; capture design inspiration and code samples in `docs/REFERENCES.md`.
-    *   [ ] Finalize the choice of GUI framework (e.g., PyQt6).
-    *   [ ] Design the main application window layout.
-    *   [ ] Mock up the key UI components (file loader, policy display, diff view, merge dialogs).
+    *   [x] Research & References (Context7 + web): Compare PyQt6 patterns (Model/View, QTableView, item delegates), UX patterns for diff/merge tools; capture design inspiration and code samples in `docs/REFERENCES.md`.
+    *   [x] Finalize the choice of GUI framework (PyQt6).
+    *   [x] Design the main application window layout.
+    *   [x] Mock up the key UI components (file loader, policy display, diff view, merge dialogs).
 
 *   **Step 2.2: GUI Implementation**
     *   [ ] Research & References (Context7 + web): Review QAbstractTableModel patterns, virtualized tables, diff visualization techniques, and theming; collect examples in `docs/REFERENCES.md`.
