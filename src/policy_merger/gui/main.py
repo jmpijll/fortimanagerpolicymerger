@@ -65,6 +65,10 @@ class MainWindow(QMainWindow):
         load_session_action.triggered.connect(self._load_session)
         tb.addAction(load_session_action)
 
+        about_action = QAction("About", self)
+        about_action.triggered.connect(self._about)
+        tb.addAction(about_action)
+
     def _open_files(self) -> None:
         files, _ = QFileDialog.getOpenFileNames(
             self,
@@ -142,6 +146,13 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "Loaded", f"Loaded session from {path}")
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
+
+    def _about(self) -> None:
+        try:
+            from .. import __version__
+        except Exception:
+            __version__ = "dev"
+        QMessageBox.information(self, "About", f"Policy Merger\nVersion {__version__}")
 
     def _export_csv(self) -> None:
         if self._model.rowCount() == 0:

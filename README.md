@@ -80,6 +80,13 @@ PYTHONPATH=src python -m policy_merger.batch_merge \
 PYTHONPATH=src .venv/bin/python -m policy_merger.gui.main
 ```
 
+### Build app (macOS)
+
+```bash
+bash scripts/build_gui.sh
+open dist/PolicyMerger.app
+```
+
 ## License
 
 Distributed under the MIT License. See `LICENSE` for more information.

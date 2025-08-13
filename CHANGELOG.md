@@ -19,3 +19,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 -   Implemented CSV loader with header detection and FortiGate tag extraction; initial data models.
 -   Implemented diff engine (identity grouping, Jaccard similarity) and merger utilities.
 -   Added CLI tools: summary and interactive merge workflow (Phase 1 prototype).
+-   GUI scaffold with PyQt6; merge dialog; diff dialog; compare selected; export merged CSV.
+-   Batch merge CLI; session save/load; rotating file logging.
+-   Tests for CSV loader; About dialog; version set to 0.1.0.
