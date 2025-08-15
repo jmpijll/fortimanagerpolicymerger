@@ -222,7 +222,7 @@ class FluentMainWindow(FluentWindow):
 
     def _initNavigation(self) -> None:
         self.addSubInterface(self.importPage, FIF.FOLDER, "Import")
-        self.addSubInterface(self.reviewPage, FIF.PREVIEW, "Review")
+        self.addSubInterface(self.reviewPage, FIF.FOLDER, "Review")
         self.addSubInterface(self.exportPage, FIF.SAVE, "Export", NavigationItemPosition.BOTTOM)
 
     def _initWindow(self) -> None:

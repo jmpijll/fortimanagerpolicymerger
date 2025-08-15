@@ -23,3 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 -   Batch merge CLI; session save/load; rotating file logging.
 -   Tests for CSV loader; About dialog; version set to 0.1.0.
  -   Fluent UI shell (`policy_merger.gui.fluent_app`) with Import/Review/Export pages wired to backend.
+
+### Fixed
+
+-   Replaced invalid QFluentWidgets icon constant in Fluent UI navigation to avoid `AttributeError`.
