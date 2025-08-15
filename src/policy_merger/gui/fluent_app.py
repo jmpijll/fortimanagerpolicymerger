@@ -157,6 +157,22 @@ class ReviewPage(QFrame):
 
         self._current_groups = {}
         self._group_keys: List[tuple] = []
+        # Set compact default columns (identity fields) for review
+        identity_cols = [
+            "name",
+            "srcintf",
+            "dstintf",
+            "srcaddr",
+            "dstaddr",
+            "service",
+            "schedule",
+            "action",
+            "nat",
+        ]
+        available = self.state.model.all_columns()
+        compact = [c for c in identity_cols if c in available]
+        if compact:
+            self.state.model.set_display_columns(compact)
 
     def _refresh_suggestions(self) -> None:
         if self.state.model.rowCount() == 0:

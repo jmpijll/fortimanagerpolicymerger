@@ -12,6 +12,7 @@ class PolicyTableModel(QAbstractTableModel):
         super().__init__()
         self._rules: List[PolicyRule] = []
         self._columns: List[str] = []
+        self._display_columns: List[str] | None = None
         if policy_sets:
             self.set_policy_sets(policy_sets)
 
@@ -35,13 +36,15 @@ class PolicyTableModel(QAbstractTableModel):
     def columnCount(self, parent: QModelIndex = QModelIndex()) -> int:  # type: ignore[override]
         if parent.isValid():
             return 0
-        return len(self._columns)
+        cols = self._display_columns if self._display_columns is not None else self._columns
+        return len(cols)
 
     def data(self, index: QModelIndex, role: int = Qt.ItemDataRole.DisplayRole) -> QVariant:  # type: ignore[override]
         if not index.isValid() or role not in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.ToolTipRole):
             return QVariant()
         rule = self._rules[index.row()]
-        col = self._columns[index.column()]
+        cols = self._display_columns if self._display_columns is not None else self._columns
+        col = cols[index.column()]
         value = rule.raw.get(col, "")
         if role == Qt.ItemDataRole.ToolTipRole and col != "name":
             return f"{value} (from {rule.source_fortigate})"
@@ -51,10 +54,19 @@ class PolicyTableModel(QAbstractTableModel):
         if role != Qt.ItemDataRole.DisplayRole:
             return QVariant()
         if orientation == Qt.Orientation.Horizontal:
-            if 0 <= section < len(self._columns):
-                return self._columns[section]
+            cols = self._display_columns if self._display_columns is not None else self._columns
+            if 0 <= section < len(cols):
+                return cols[section]
         else:
             return section + 1
         return QVariant()
+
+    def set_display_columns(self, columns: List[str] | None) -> None:
+        self.beginResetModel()
+        self._display_columns = list(columns) if columns is not None else None
+        self.endResetModel()
+
+    def all_columns(self) -> List[str]:
+        return list(self._columns)
 
 
