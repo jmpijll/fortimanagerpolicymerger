@@ -62,6 +62,7 @@ A living log of references used during development.
 - TeachingTip/Flyout patterns (Context7): lightweight guidance and progressive disclosure — `/zhiyiyo/qfluentwidgets-docs` components.
 - UX patterns (web): guided review flows for bulk actions, batch confirmations, and progressive disclosure to reduce cognitive load.
 - Compact rule presentation: use essential “identity” fields and per-field chips; expand-on-demand for full raw CSV fields.
+ - Icon sets: ensure usage of available `FluentIcon` members per the installed version; avoid non-existent constants like `PREVIEW`. Use `FIF.FOLDER`, `FIF.SAVE`, etc.
 ## Phase 3, Step 3.1 (Session Management)
 
 - Qt Standard Paths (Context7): `QStandardPaths::writableLocation(AppDataLocation)` for default save path — `/context7/qt-6-docs`

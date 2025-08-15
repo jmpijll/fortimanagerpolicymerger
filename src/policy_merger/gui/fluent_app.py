@@ -28,7 +28,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt
 
 from policy_merger.csv_loader import read_policy_csv
-from policy_merger.diff_engine import find_similar_rules
+from policy_merger.diff_engine import find_similar_rules, deduplicate_identical_rules, group_similarity_suggestions
 from policy_merger.merger import write_merged_csv, merge_fields
 from policy_merger.models import PolicySet
 from policy_merger.gui.models import PolicyTableModel
@@ -73,13 +73,22 @@ class ImportPage(QFrame):
             return
         try:
             policy_sets = [read_policy_csv(path) for path in files]
-            self.state.policy_sets = policy_sets
-            self.state.model.set_policy_sets(policy_sets)
-            total_rules = sum(len(ps.rules) for ps in policy_sets)
-            self._status.setText(f"Loaded {total_rules} rules from {len(files)} files")
+            # Auto-dedupe identical rules across all sets
+            all_rules = [r for ps in policy_sets for r in ps.rules]
+            unique_rules, removed = deduplicate_identical_rules(all_rules)
+            # Build a synthetic set for display with union columns preserved from first file
+            display_columns = policy_sets[0].columns if policy_sets and policy_sets[0].columns else []
+            ps_display = PolicySet(source_fortigate="MERGED", columns=display_columns)
+            for r in unique_rules:
+                ps_display.add_rule(r.raw)
+            self.state.policy_sets = [ps_display]
+            self.state.model.set_policy_sets(self.state.policy_sets)
+            total_rules = len(unique_rules)
+            dedupe_note = f" (removed {removed} duplicate rule(s))" if removed else ""
+            self._status.setText(f"Loaded {total_rules} unique rules from {len(files)} files{dedupe_note}")
             if self.on_import_complete:
                 self.on_import_complete()
-            QMessageBox.information(self, "Loaded", f"Loaded {total_rules} rules from {len(files)} files")
+            QMessageBox.information(self, "Loaded", f"Loaded {total_rules} unique rules from {len(files)} files{dedupe_note}")
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
 
@@ -94,12 +103,15 @@ class ReviewPage(QFrame):
         header = QHBoxLayout()
         title = QLabel("Review & Resolve", self)
         title.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        self._btn_refresh = PrimaryPushButton("Refresh Suggestions", self)
         self._btn_resolve = PrimaryPushButton("Resolve Suggestions", self)
         self._btn_compare = PrimaryPushButton("Compare Selected", self)
+        self._btn_refresh.clicked.connect(self._refresh_suggestions)
         self._btn_resolve.clicked.connect(self._resolve_suggestions)
         self._btn_compare.clicked.connect(self._compare_selected)
         header.addWidget(title)
         header.addStretch(1)
+        header.addWidget(self._btn_refresh)
         header.addWidget(self._btn_compare)
         header.addWidget(self._btn_resolve)
 
@@ -111,6 +123,16 @@ class ReviewPage(QFrame):
 
         layout.addLayout(header)
         layout.addWidget(self._table)
+
+        self._current_groups = {}
+
+    def _refresh_suggestions(self) -> None:
+        if self.state.model.rowCount() == 0:
+            QMessageBox.information(self, "No data", "Load CSVs first")
+            return
+        self._current_groups = group_similarity_suggestions(self.state.model._rules)
+        total_pairs = sum(len(v) for v in self._current_groups.values())
+        QMessageBox.information(self, "Suggestions", f"Found {total_pairs} similar pair(s) across {len(self._current_groups)} group(s)")
 
     def _compare_selected(self) -> None:
         sel = self._table.selectionModel().selectedRows()

@@ -105,7 +105,7 @@ This phase focuses on modernizing the UI/UX and introducing a guided, confirmati
     *   [ ] Draft UX flows: compact rule list (identity fields only), per-field chips for diffs, one-click actions (keep A/B, keep both rename, merge fields) with batch confirmation.
 
 *   **Step 3.5.2: Backend Auto-dedupe & Suggestions**
-    *   [ ] On import, auto-deduplicate identical rules; auto-group similar rules by identity keys; precompute suggested actions (keep/merge) to minimize clicks.
+    *   [x] On import, auto-deduplicate identical rules; auto-group similar rules by identity keys; precompute suggested actions (keep/merge) to minimize clicks.
     *   [ ] Provide batch actions and a single confirmation dialog per group.
 
 *   **Step 3.5.3: UI Implementation (Fluent UI)**

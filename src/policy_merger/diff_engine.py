@@ -111,3 +111,36 @@ def find_similar_rules(
     return suggestions
 
 
+def deduplicate_identical_rules(rules: Iterable[PolicyRule]) -> Tuple[List[PolicyRule], int]:
+    """Remove exact duplicates based on identity signature, preserving first occurrence.
+
+    Returns a tuple of (unique_rules, num_removed).
+    """
+    seen: Dict[Tuple[str, ...], PolicyRule] = {}
+    unique: List[PolicyRule] = []
+    removed = 0
+    for r in rules:
+        sig = r.identity_signature()
+        if sig in seen:
+            removed += 1
+            continue
+        seen[sig] = r
+        unique.append(r)
+    return unique, removed
+
+
+def group_similarity_suggestions(
+    rules: Iterable[PolicyRule],
+    candidate_fields: Sequence[str] = ("srcaddr", "dstaddr", "service"),
+    min_similarity: float = 0.2,
+) -> Dict[Tuple[Tuple[str, str], ...], List[SimilaritySuggestion]]:
+    """Find and group similarity suggestions by stable key (all non-candidate fields).
+
+    This is useful for presenting batch actions per group in the UI.
+    """
+    grouped: Dict[Tuple[Tuple[str, str], ...], List[SimilaritySuggestion]] = defaultdict(list)
+    for s in find_similar_rules(rules, candidate_fields=candidate_fields, min_similarity=min_similarity):
+        grouped[s.stable_key].append(s)
+    return grouped
+
+
