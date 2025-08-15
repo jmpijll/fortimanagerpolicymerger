@@ -74,10 +74,10 @@ PYTHONPATH=src python -m policy_merger.batch_merge \
   --out merged/batch_merged.csv
 ```
 
-### GUI (prototype)
+### GUI (Fluent UI)
 
 ```bash
-PYTHONPATH=src .venv/bin/python -m policy_merger.gui.main
+PYTHONPATH=src .venv/bin/python -m policy_merger.gui.fluent_app
 ```
 
 ### Build app (macOS)
