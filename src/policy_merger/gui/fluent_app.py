@@ -24,6 +24,8 @@ from PyQt6.QtWidgets import (
     QTableView,
     QDialog,
     QWidget,
+    QListWidget,
+    QPushButton,
 )
 from PyQt6.QtCore import Qt
 
@@ -115,23 +117,64 @@ class ReviewPage(QFrame):
         header.addWidget(self._btn_compare)
         header.addWidget(self._btn_resolve)
 
+        # Content area: table (left) + group actions (right)
+        content = QHBoxLayout()
         self._table = QTableView(self)
         self._table.setModel(self.state.model)
         self._table.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows)
         self._table.setSelectionMode(QTableView.SelectionMode.ExtendedSelection)
         self._table.setAlternatingRowColors(True)
 
+        # Right panel: suggestions and batch actions
+        right = QVBoxLayout()
+        right.addWidget(QLabel("Suggestion Groups", self))
+        self._groups_list = QListWidget(self)
+        right.addWidget(self._groups_list)
+
+        self._btn_keep_a = QPushButton("Keep A (batch)", self)
+        self._btn_keep_b = QPushButton("Keep B (batch)", self)
+        self._btn_keep_both = QPushButton("Keep both (rename B)", self)
+        self._btn_merge_a = QPushButton("Merge into A (batch)", self)
+        self._btn_merge_b = QPushButton("Merge into B (batch)", self)
+        self._btn_keep_a.clicked.connect(lambda: self._apply_batch_action("keep_a"))
+        self._btn_keep_b.clicked.connect(lambda: self._apply_batch_action("keep_b"))
+        self._btn_keep_both.clicked.connect(lambda: self._apply_batch_action("keep_both"))
+        self._btn_merge_a.clicked.connect(lambda: self._apply_batch_action("merge_into_a"))
+        self._btn_merge_b.clicked.connect(lambda: self._apply_batch_action("merge_into_b"))
+        right.addWidget(self._btn_keep_a)
+        right.addWidget(self._btn_keep_b)
+        right.addWidget(self._btn_keep_both)
+        right.addWidget(self._btn_merge_a)
+        right.addWidget(self._btn_merge_b)
+
+        content.addWidget(self._table, 3)
+        right_container = QFrame(self)
+        right_container.setLayout(right)
+        content.addWidget(right_container, 1)
+
         layout.addLayout(header)
-        layout.addWidget(self._table)
+        layout.addLayout(content)
 
         self._current_groups = {}
+        self._group_keys: List[tuple] = []
 
     def _refresh_suggestions(self) -> None:
         if self.state.model.rowCount() == 0:
             QMessageBox.information(self, "No data", "Load CSVs first")
             return
         self._current_groups = group_similarity_suggestions(self.state.model._rules)
-        total_pairs = sum(len(v) for v in self._current_groups.values())
+        self._group_keys = list(self._current_groups.keys())
+        self._groups_list.clear()
+        total_pairs = 0
+        for idx, key in enumerate(self._group_keys, start=1):
+            suggestions = self._current_groups[key]
+            total_pairs += len(suggestions)
+            # Collect differing fields across group
+            fields = set()
+            for s in suggestions:
+                fields.update(s.field_diffs.keys())
+            field_str = ", ".join(sorted(fields)) if fields else "(identical)"
+            self._groups_list.addItem(f"Group {idx}: {len(suggestions)} pair(s) | diffs: {field_str}")
         QMessageBox.information(self, "Suggestions", f"Found {total_pairs} similar pair(s) across {len(self._current_groups)} group(s)")
 
     def _compare_selected(self) -> None:
@@ -188,6 +231,49 @@ class ReviewPage(QFrame):
             for r in remaining:
                 ps.add_rule(r.raw)
             self.state.model.set_policy_sets([ps])
+
+    def _apply_batch_action(self, action: str) -> None:
+        if self._groups_list.currentRow() < 0 or not self._group_keys:
+            QMessageBox.information(self, "Select group", "Please select a suggestion group first")
+            return
+        key = self._group_keys[self._groups_list.currentRow()]
+        suggestions = self._current_groups.get(key, [])
+        if not suggestions:
+            QMessageBox.information(self, "Empty group", "No suggestions in the selected group")
+            return
+        if action not in {"keep_a", "keep_b", "keep_both", "merge_into_a", "merge_into_b"}:
+            QMessageBox.warning(self, "Unknown action", action)
+            return
+        confirm = QMessageBox.question(self, "Apply batch", f"Apply '{action}' to {len(suggestions)} pair(s) in this group?" )
+        if confirm != QMessageBox.StandardButton.Yes:
+            return
+        removed_ids = set()
+        for s in suggestions:
+            if id(s.rule_a) in removed_ids or id(s.rule_b) in removed_ids:
+                continue
+            if action == "keep_a":
+                removed_ids.add(id(s.rule_b))
+            elif action == "keep_b":
+                removed_ids.add(id(s.rule_a))
+            elif action == "keep_both":
+                name_b = s.rule_b.raw.get("name", "").strip()
+                s.rule_b.raw["name"] = f"{name_b}-from-{s.rule_b.source_fortigate}" if name_b else f"rule-from-{s.rule_b.source_fortigate}"
+            elif action == "merge_into_a":
+                merged = merge_fields(s.rule_a, s.rule_b, fields=("srcaddr", "dstaddr", "service"))
+                s.rule_a.raw.update(merged)
+                removed_ids.add(id(s.rule_b))
+            elif action == "merge_into_b":
+                merged = merge_fields(s.rule_b, s.rule_a, fields=("srcaddr", "dstaddr", "service"))
+                s.rule_b.raw.update(merged)
+                removed_ids.add(id(s.rule_a))
+        if removed_ids:
+            remaining = [r for r in self.state.model._rules if id(r) not in removed_ids]  # type: ignore[attr-defined]
+            ps = PolicySet(source_fortigate="MERGED", columns=self.state.model._columns)  # type: ignore[attr-defined]
+            for r in remaining:
+                ps.add_rule(r.raw)
+            self.state.model.set_policy_sets([ps])
+            # refresh suggestions after changes
+            self._refresh_suggestions()
 
 
 class ExportPage(QFrame):

@@ -110,6 +110,7 @@ This phase focuses on modernizing the UI/UX and introducing a guided, confirmati
 
 *   **Step 3.5.3: UI Implementation (Fluent UI)**
     *   [x] Replace toolbar/table shell with a Fluent window (navigation + pages): Import, Review, Export.
+    *   [x] Add batch group actions in Review (keep/merge per group with single confirmation).
     *   [ ] Implement compact review list with expandable rows and highlighted per-field diffs.
     *   [ ] Add guided tips (TeachingTip/Flyout) and theme support (light/dark, accent color).
 
