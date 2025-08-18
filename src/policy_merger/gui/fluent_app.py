@@ -18,6 +18,7 @@ from qfluentwidgets import (
     InfoBarPosition,
     TeachingTip,
     TeachingTipTailPosition,
+    TogglePushButton,
 )
 from PyQt6.QtWidgets import (
     QApplication,
@@ -32,6 +33,8 @@ from PyQt6.QtWidgets import (
     QWidget,
     QListWidget,
     QPushButton,
+    QTableWidget,
+    QTableWidgetItem,
 )
 from PyQt6.QtCore import Qt
 
@@ -114,22 +117,34 @@ class ReviewPage(QFrame):
         self._btn_refresh = PrimaryPushButton("Refresh Suggestions", self)
         self._btn_resolve = PrimaryPushButton("Resolve Suggestions", self)
         self._btn_compare = PrimaryPushButton("Compare Selected", self)
+        self._btn_toggle_columns = TogglePushButton("Compact Columns", self)
+        self._btn_toggle_columns.setChecked(True)
         self._btn_refresh.clicked.connect(self._refresh_suggestions)
         self._btn_resolve.clicked.connect(self._resolve_suggestions)
         self._btn_compare.clicked.connect(self._compare_selected)
+        self._btn_toggle_columns.toggled.connect(self._on_toggle_columns)
         header.addWidget(title)
         header.addStretch(1)
+        header.addWidget(self._btn_toggle_columns)
         header.addWidget(self._btn_refresh)
         header.addWidget(self._btn_compare)
         header.addWidget(self._btn_resolve)
 
-        # Content area: table (left) + group actions (right)
+        # Content area: table + details (left) + group actions (right)
         content = QHBoxLayout()
         self._table = QTableView(self)
         self._table.setModel(self.state.model)
         self._table.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows)
         self._table.setSelectionMode(QTableView.SelectionMode.ExtendedSelection)
         self._table.setAlternatingRowColors(True)
+
+        # Details panel for selected rule
+        left = QVBoxLayout()
+        left.addWidget(self._table)
+        self._details = QTableWidget(self)
+        self._details.setColumnCount(2)
+        self._details.setHorizontalHeaderLabels(["Field", "Value"])
+        left.addWidget(self._details)
 
         # Right panel: suggestions and batch actions
         right = QVBoxLayout()
@@ -170,7 +185,9 @@ class ReviewPage(QFrame):
         right.addWidget(self._btn_merge_a)
         right.addWidget(self._btn_merge_b)
 
-        content.addWidget(self._table, 3)
+        left_container = QFrame(self)
+        left_container.setLayout(left)
+        content.addWidget(left_container, 3)
         right_container = QFrame(self)
         right_container.setLayout(right)
         content.addWidget(right_container, 1)
@@ -186,6 +203,7 @@ class ReviewPage(QFrame):
         # Wire selection changes
         self._groups_list.currentRowChanged.connect(self._on_group_selected)
         self._pairs_list.currentRowChanged.connect(self._on_pair_selected)
+        self._table.selectionModel().selectionChanged.connect(self._update_details_from_selected_row)
         # Set compact default columns (identity fields) for review
         identity_cols = [
             "name",
@@ -202,6 +220,7 @@ class ReviewPage(QFrame):
         compact = [c for c in identity_cols if c in available]
         if compact:
             self.state.model.set_display_columns(compact)
+        self._update_details_from_selected_row()
 
     def _refresh_suggestions(self) -> None:
         if self.state.model.rowCount() == 0:
@@ -334,6 +353,50 @@ class ReviewPage(QFrame):
             chip = PillPushButton(f, self._chip_frame)
             chip.setEnabled(False)
             self._chip_layout.addWidget(chip)
+
+    def _on_toggle_columns(self, checked: bool) -> None:
+        if checked:
+            identity_cols = [
+                "name",
+                "srcintf",
+                "dstintf",
+                "srcaddr",
+                "dstaddr",
+                "service",
+                "schedule",
+                "action",
+                "nat",
+            ]
+            available = self.state.model.all_columns()
+            compact = [c for c in identity_cols if c in available]
+            self.state.model.set_display_columns(compact)
+        else:
+            self.state.model.set_display_columns(None)
+        self._update_details_from_selected_row()
+
+    def _update_details_from_selected_row(self) -> None:
+        # Show details for first selected row
+        sel = self._table.selectionModel().selectedRows()
+        if not sel:
+            self._details.clearContents()
+            self._details.setRowCount(0)
+            return
+        row = sel[0].row()
+        try:
+            rule = self.state.model._rules[row]  # type: ignore[attr-defined]
+            columns = self.state.model._columns  # type: ignore[attr-defined]
+            self._details.setRowCount(len(columns))
+            for i, col in enumerate(columns):
+                item_field = QTableWidgetItem(col)
+                val = (rule.raw.get(col, "") or "").strip()
+                item_val = QTableWidgetItem(val)
+                item_field.setFlags(Qt.ItemFlag.ItemIsEnabled)
+                item_val.setFlags(Qt.ItemFlag.ItemIsEnabled)
+                self._details.setItem(i, 0, item_field)
+                self._details.setItem(i, 1, item_val)
+            self._details.resizeColumnsToContents()
+        except Exception:
+            pass
 
     def _clear_chips(self) -> None:
         while self._chip_layout.count():
