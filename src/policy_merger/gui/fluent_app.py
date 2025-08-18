@@ -317,11 +317,14 @@ class ReviewPage(QFrame):
                 name_b = s.rule_b.raw.get("name", "").strip()
                 s.rule_b.raw["name"] = f"{name_b}-from-{s.rule_b.source_fortigate}" if name_b else f"rule-from-{s.rule_b.source_fortigate}"
             elif choice == "merge_into_a":
-                merged = merge_fields(s.rule_a, s.rule_b, fields=("srcaddr", "dstaddr", "service"))
+                # Use selected fields from dialog if provided
+                fields = tuple(dlg.selected_fields) if getattr(dlg, 'selected_fields', None) else ("srcaddr", "dstaddr", "service")
+                merged = merge_fields(s.rule_a, s.rule_b, fields=fields)
                 s.rule_a.raw.update(merged)
                 removed_ids.add(id(s.rule_b))
             elif choice == "merge_into_b":
-                merged = merge_fields(s.rule_b, s.rule_a, fields=("srcaddr", "dstaddr", "service"))
+                fields = tuple(dlg.selected_fields) if getattr(dlg, 'selected_fields', None) else ("srcaddr", "dstaddr", "service")
+                merged = merge_fields(s.rule_b, s.rule_a, fields=fields)
                 s.rule_b.raw.update(merged)
                 removed_ids.add(id(s.rule_a))
         if removed_ids:

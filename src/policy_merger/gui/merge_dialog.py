@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from typing import Dict, Tuple
+from typing import Dict, Tuple, List
 
-from PyQt6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QVBoxLayout, QPushButton
+from PyQt6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QVBoxLayout, QPushButton, QGroupBox, QHBoxLayout, QCheckBox
 
 from policy_merger.diff_engine import compare_rules
 from policy_merger.models import PolicyRule
@@ -16,6 +16,7 @@ class MergeDialog(QDialog):
         self.rule_a = rule_a
         self.rule_b = rule_b
         self.result_choice: str | None = None
+        self.selected_fields: List[str] = ["srcaddr", "dstaddr", "service"]
 
         layout = QVBoxLayout(self)
         layout.addWidget(QLabel(f"A from {rule_a.source_fortigate}: {rule_a.raw.get('name','')}", self))
@@ -27,11 +28,22 @@ class MergeDialog(QDialog):
             for field, (a_v, b_v) in diffs.items():
                 layout.addWidget(QLabel(f"- {field}: A='{a_v}' | B='{b_v}'", self))
 
+        # Field selection for merge actions
+        fields_box = QGroupBox("Fields to merge", self)
+        fields_layout = QHBoxLayout(fields_box)
+        self._cb_src = QCheckBox("srcaddr", fields_box)
+        self._cb_dst = QCheckBox("dstaddr", fields_box)
+        self._cb_svc = QCheckBox("service", fields_box)
+        for cb in (self._cb_src, self._cb_dst, self._cb_svc):
+            cb.setChecked(True)
+            fields_layout.addWidget(cb)
+        layout.addWidget(fields_box)
+
         btn_keep_a = QPushButton("Keep A / discard B", self)
         btn_keep_b = QPushButton("Keep B / discard A", self)
         btn_keep_both = QPushButton("Keep both (rename)", self)
-        btn_merge_into_a = QPushButton("Merge fields into A", self)
-        btn_merge_into_b = QPushButton("Merge fields into B", self)
+        btn_merge_into_a = QPushButton("Merge selected into A", self)
+        btn_merge_into_b = QPushButton("Merge selected into B", self)
 
         layout.addWidget(btn_keep_a)
         layout.addWidget(btn_keep_b)
@@ -63,10 +75,16 @@ class MergeDialog(QDialog):
 
     def _choose_merge_into_a(self) -> None:
         self.result_choice = "merge_into_a"
+        self.selected_fields = self._get_selected_fields()
         self.accept()
 
     def _choose_merge_into_b(self) -> None:
         self.result_choice = "merge_into_b"
+        self.selected_fields = self._get_selected_fields()
         self.accept()
+
+    def _get_selected_fields(self) -> List[str]:
+        pairs = [("srcaddr", self._cb_src), ("dstaddr", self._cb_dst), ("service", self._cb_svc)]
+        return [name for name, cb in pairs if cb.isChecked()]
 
 
