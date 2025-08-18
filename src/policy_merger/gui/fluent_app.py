@@ -48,6 +48,7 @@ from policy_merger.diff_engine import (
     deduplicate_by_five_fields,
     group_duplicates_by_five_fields,
     FIVE_FIELDS,
+    find_merge_suggestions_five_fields,
 )
 from policy_merger.merger import write_merged_csv, merge_fields
 from policy_merger.models import PolicySet
@@ -339,7 +340,12 @@ class ReviewPage(QFrame):
         if self.state.model.rowCount() == 0:
             QMessageBox.information(self, "No data", "Load CSVs first")
             return
-        self._current_groups = group_similarity_suggestions(self.state.model._rules)
+        # Build five-field-based merge suggestions grouped by stable key
+        suggestions = find_merge_suggestions_five_fields(self.state.model._rules)
+        grouped: Dict[Tuple[Tuple[str, str], ...], List] = {}
+        for s in suggestions:
+            grouped.setdefault(s.stable_key, []).append(s)
+        self._current_groups = grouped
         self._group_keys = list(self._current_groups.keys())
         self._groups_list.clear()
         total_pairs = 0
@@ -393,7 +399,7 @@ class ReviewPage(QFrame):
         if self.state.model.rowCount() == 0:
             QMessageBox.information(self, "No data", "Load CSVs first")
             return
-        suggestions = find_similar_rules(self.state.model._rules)  # type: ignore[attr-defined]
+        suggestions = find_merge_suggestions_five_fields(self.state.model._rules)  # type: ignore[attr-defined]
         if not suggestions:
             QMessageBox.information(self, "No suggestions", "No similar rules detected with current heuristic")
             return
