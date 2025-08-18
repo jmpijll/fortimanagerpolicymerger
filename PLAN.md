@@ -121,3 +121,46 @@ This phase focuses on modernizing the UI/UX and introducing a guided, confirmati
 
 *   **Step 3.5.5: QA & Feedback Loop**
     *   [x] Gather user feedback; iterate on copy, spacing, density settings, and keyboard shortcuts (initial pass complete).
+
+## Phase 3.6: Trust & Guidance – Transparent Dedupe and Guided Merge
+
+This phase addresses user feedback to improve transparency, guidance, and control during deduplication and merging, focusing strictly on five key fields and clear, friendly communication.
+
+*   **Step 3.6.1: Research & Product Copy**
+    *   [ ] Research & References (Context7 + web): Guided flows, “human-friendly” microcopy, TeachingTip/InfoBar best practices.
+    *   [ ] Draft user-facing copy for dedupe review, merge suggestions, confirmations, and success/error states.
+
+*   **Step 3.6.2: Five-Field Exact Dedupe (Backend)**
+    *   [ ] Implement exact-match dedupe strictly on: `srcaddr`, `dstaddr`, `srcintf`, `dstintf`, `service`.
+    *   [ ] Preserve groups of duplicates for review (mapping of canonical rule → duplicates).
+    *   [ ] Stage duplicates for user confirmation (no silent removal); default to “keep first; others removed,” but reversible.
+
+*   **Step 3.6.3: Dedupe Review UI**
+    *   [ ] Add a dedicated Dedupe Review step/panel listing duplicate groups with counts and a compact preview.
+    *   [ ] Provide actions: Keep First, Keep Specific, Keep Both (rename), Skip; show “other values will follow the kept one.”
+    *   [ ] Add summary banner (groups, total removed), confirmation dialog, Undo last action, and session persistence.
+
+*   **Step 3.6.4: Merge Suggestions on Five Fields (Backend)**
+    *   [ ] Compute “almost the same” suggestions using only the five fields; detect extra values in multi-value fields.
+    *   [ ] Generate union merge proposals (additive) for differing fields with clear, human-readable reasons.
+
+*   **Step 3.6.5: Guided Merge UI**
+    *   [ ] Introduce a stepper: Import → Dedupe Review → Suggestions → Export.
+    *   [ ] For each suggestion group, show per-field chips (added/missing), batch apply with single confirmation.
+    *   [ ] Provide “Why am I seeing this?” explainer, inline helper text, and TeachingTips for first-time actions.
+
+*   **Step 3.6.6: Friendly Communication & Onboarding**
+    *   [ ] Update all messages, banners, and dialogs with friendly, action-focused microcopy.
+    *   [ ] Add contextual tooltips and InfoBars for important decisions, with dismissible hints.
+
+*   **Step 3.6.7: Audit & Transparency**
+    *   [ ] Maintain an in-app activity log of dedupe/merge decisions; allow export (CSV/JSON) for audit.
+    *   [ ] Provide filters (by action/type) and quick search within the log.
+
+*   **Step 3.6.8: Testing & QA**
+    *   [ ] Unit tests for five-field dedupe (exact) and five-field merge (union) behaviors.
+    *   [ ] Acceptance tests for guided flow (happy-path + cancel/undo) and session restore.
+
+*   **Step 3.6.9: Docs & Packaging**
+    *   [ ] Update README and TECH_SPECS with five-field rules and guided flow.
+    *   [ ] Update CHANGELOG; ensure packaging scripts still target Fluent UI entrypoint.
