@@ -72,7 +72,9 @@ def find_similar_rules(
     min_similarity: float = 0.2,
 ) -> List[SimilaritySuggestion]:
     suggestions: List[SimilaritySuggestion] = []
-    groups = group_by_stable_key(rules, excluded_fields=candidate_fields)
+    # Exclude variable/non-stable fields from grouping such as name/policyid in addition to candidate fields
+    excluded_fields: Tuple[str, ...] = tuple(candidate_fields) + ("name", "policyid")
+    groups = group_by_stable_key(rules, excluded_fields=excluded_fields)
     for stable_key, group_rules in groups.items():
         n = len(group_rules)
         if n < 2:

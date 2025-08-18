@@ -12,6 +12,12 @@ from qfluentwidgets import (
     setTheme,
     Theme,
     PrimaryPushButton,
+    PillPushButton,
+    InfoBar,
+    InfoBarIcon,
+    InfoBarPosition,
+    TeachingTip,
+    TeachingTipTailPosition,
 )
 from PyQt6.QtWidgets import (
     QApplication,
@@ -131,6 +137,23 @@ class ReviewPage(QFrame):
         self._groups_list = QListWidget(self)
         right.addWidget(self._groups_list)
 
+        right.addWidget(QLabel("Group Details", self))
+        self._pairs_list = QListWidget(self)
+        right.addWidget(self._pairs_list)
+
+        # Per-pair actions
+        self._btn_open_diff = QPushButton("Open Diff", self)
+        self._btn_open_diff.clicked.connect(self._open_selected_pair_diff)
+        right.addWidget(self._btn_open_diff)
+
+        # Diff chips container
+        right.addWidget(QLabel("Differing fields", self))
+        self._chip_frame = QFrame(self)
+        self._chip_layout = QHBoxLayout(self._chip_frame)
+        self._chip_layout.setContentsMargins(0, 0, 0, 0)
+        self._chip_layout.setSpacing(6)
+        right.addWidget(self._chip_frame)
+
         self._btn_keep_a = QPushButton("Keep A (batch)", self)
         self._btn_keep_b = QPushButton("Keep B (batch)", self)
         self._btn_keep_both = QPushButton("Keep both (rename B)", self)
@@ -157,6 +180,12 @@ class ReviewPage(QFrame):
 
         self._current_groups = {}
         self._group_keys: List[tuple] = []
+        self._current_group_index: int = -1
+        self._current_pair_index: int = -1
+
+        # Wire selection changes
+        self._groups_list.currentRowChanged.connect(self._on_group_selected)
+        self._pairs_list.currentRowChanged.connect(self._on_pair_selected)
         # Set compact default columns (identity fields) for review
         identity_cols = [
             "name",
@@ -191,7 +220,26 @@ class ReviewPage(QFrame):
                 fields.update(s.field_diffs.keys())
             field_str = ", ".join(sorted(fields)) if fields else "(identical)"
             self._groups_list.addItem(f"Group {idx}: {len(suggestions)} pair(s) | diffs: {field_str}")
-        QMessageBox.information(self, "Suggestions", f"Found {total_pairs} similar pair(s) across {len(self._current_groups)} group(s)")
+        InfoBar.info(
+            title='Suggestions updated',
+            content=f"Found {total_pairs} similar pair(s) across {len(self._current_groups)} group(s)",
+            orient=Qt.Horizontal,
+            isClosable=True,
+            position=InfoBarPosition.TOP_RIGHT,
+            duration=3000,
+            parent=self
+        )
+        # Teaching tip to guide usage
+        TeachingTip.create(
+            target=self._groups_list,
+            icon=InfoBarIcon.INFORMATION,
+            title='How to use',
+            content='Select a group to see its pairs, then select a pair to view differing fields. Use batch actions for the whole group.',
+            isClosable=True,
+            tailPosition=TeachingTipTailPosition.RIGHT,
+            duration=4000,
+            parent=self
+        )
 
     def _compare_selected(self) -> None:
         sel = self._table.selectionModel().selectedRows()
@@ -247,6 +295,64 @@ class ReviewPage(QFrame):
             for r in remaining:
                 ps.add_rule(r.raw)
             self.state.model.set_policy_sets([ps])
+            # refresh pairs/chips view
+            self._on_group_selected(self._groups_list.currentRow())
+
+    def _on_group_selected(self, row: int) -> None:
+        self._current_group_index = row
+        self._pairs_list.clear()
+        self._clear_chips()
+        if row < 0 or row >= len(self._group_keys):
+            return
+        key = self._group_keys[row]
+        suggestions = self._current_groups.get(key, [])
+        for i, s in enumerate(suggestions, start=1):
+            a_name = (s.rule_a.raw.get('name', '') or '').strip()
+            b_name = (s.rule_b.raw.get('name', '') or '').strip()
+            a_src = s.rule_a.source_fortigate
+            b_src = s.rule_b.source_fortigate
+            fields = ','.join(sorted(s.field_diffs.keys())) if s.field_diffs else '(identical)'
+            self._pairs_list.addItem(f"Pair {i}: A:{a_name} ({a_src}) vs B:{b_name} ({b_src}) | diffs: {fields}")
+
+    def _on_pair_selected(self, row: int) -> None:
+        self._current_pair_index = row
+        self._clear_chips()
+        if self._current_group_index < 0 or self._current_group_index >= len(self._group_keys):
+            return
+        key = self._group_keys[self._current_group_index]
+        suggestions = self._current_groups.get(key, [])
+        if row < 0 or row >= len(suggestions):
+            return
+        s = suggestions[row]
+        fields = sorted(s.field_diffs.keys()) if s.field_diffs else []
+        if not fields:
+            chip = PillPushButton('identical', self._chip_frame)
+            chip.setEnabled(False)
+            self._chip_layout.addWidget(chip)
+            return
+        for f in fields:
+            chip = PillPushButton(f, self._chip_frame)
+            chip.setEnabled(False)
+            self._chip_layout.addWidget(chip)
+
+    def _clear_chips(self) -> None:
+        while self._chip_layout.count():
+            item = self._chip_layout.takeAt(0)
+            w = item.widget()
+            if w is not None:
+                w.deleteLater()
+
+    def _open_selected_pair_diff(self) -> None:
+        if self._current_group_index < 0 or self._current_group_index >= len(self._group_keys):
+            return
+        key = self._group_keys[self._current_group_index]
+        suggestions = self._current_groups.get(key, [])
+        if self._current_pair_index < 0 or self._current_pair_index >= len(suggestions):
+            return
+        s = suggestions[self._current_pair_index]
+        columns = self.state.model._columns  # type: ignore[attr-defined]
+        dlg = DiffDialog(s.rule_a, s.rule_b, columns, self)
+        dlg.exec()
 
     def _apply_batch_action(self, action: str) -> None:
         if self._groups_list.currentRow() < 0 or not self._group_keys:
