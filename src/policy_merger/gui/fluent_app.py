@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import sys
 from dataclasses import dataclass, field
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Any
 
 from qfluentwidgets import (
     FluentWindow,
@@ -64,6 +64,7 @@ class AppState:
     policy_sets: List[PolicySet] = field(default_factory=list)
     model: PolicyTableModel = field(default_factory=PolicyTableModel)
     duplicate_groups: Dict[Tuple[str, str, str, str, str], List] = field(default_factory=dict)
+    audit_log: List[Dict[str, Any]] = field(default_factory=list)
 
 
 class ImportPage(QFrame):
@@ -414,22 +415,27 @@ class ReviewPage(QFrame):
             choice = dlg.result_choice
             if choice == "keep_a":
                 removed_ids.add(id(s.rule_b))
+                self.state.audit_log.append({"action": "keep_a", "reason": build_suggestion_reason(s)})
             elif choice == "keep_b":
                 removed_ids.add(id(s.rule_a))
+                self.state.audit_log.append({"action": "keep_b", "reason": build_suggestion_reason(s)})
             elif choice == "keep_both":
                 name_b = s.rule_b.raw.get("name", "").strip()
                 s.rule_b.raw["name"] = f"{name_b}-from-{s.rule_b.source_fortigate}" if name_b else f"rule-from-{s.rule_b.source_fortigate}"
+                self.state.audit_log.append({"action": "keep_both", "reason": build_suggestion_reason(s)})
             elif choice == "merge_into_a":
                 # Use selected fields from dialog if provided
                 fields = tuple(dlg.selected_fields) if getattr(dlg, 'selected_fields', None) else ("srcaddr", "dstaddr", "service")
                 merged = merge_fields(s.rule_a, s.rule_b, fields=fields)
                 s.rule_a.raw.update(merged)
                 removed_ids.add(id(s.rule_b))
+                self.state.audit_log.append({"action": "merge_into_a", "fields": list(fields), "reason": build_suggestion_reason(s)})
             elif choice == "merge_into_b":
                 fields = tuple(dlg.selected_fields) if getattr(dlg, 'selected_fields', None) else ("srcaddr", "dstaddr", "service")
                 merged = merge_fields(s.rule_b, s.rule_a, fields=fields)
                 s.rule_b.raw.update(merged)
                 removed_ids.add(id(s.rule_a))
+                self.state.audit_log.append({"action": "merge_into_b", "fields": list(fields), "reason": build_suggestion_reason(s)})
         if removed_ids:
             remaining = [r for r in self.state.model._rules if id(r) not in removed_ids]  # type: ignore[attr-defined]
             from policy_merger.models import PolicySet
@@ -580,19 +586,24 @@ class ReviewPage(QFrame):
                 continue
             if action == "keep_a":
                 removed_ids.add(id(s.rule_b))
+                self.state.audit_log.append({"action": "batch_keep_a", "reason": build_suggestion_reason(s)})
             elif action == "keep_b":
                 removed_ids.add(id(s.rule_a))
+                self.state.audit_log.append({"action": "batch_keep_b", "reason": build_suggestion_reason(s)})
             elif action == "keep_both":
                 name_b = s.rule_b.raw.get("name", "").strip()
                 s.rule_b.raw["name"] = f"{name_b}-from-{s.rule_b.source_fortigate}" if name_b else f"rule-from-{s.rule_b.source_fortigate}"
+                self.state.audit_log.append({"action": "batch_keep_both", "reason": build_suggestion_reason(s)})
             elif action == "merge_into_a":
                 merged = merge_fields(s.rule_a, s.rule_b, fields=("srcaddr", "dstaddr", "service"))
                 s.rule_a.raw.update(merged)
                 removed_ids.add(id(s.rule_b))
+                self.state.audit_log.append({"action": "batch_merge_into_a", "fields": ["srcaddr","dstaddr","service"], "reason": build_suggestion_reason(s)})
             elif action == "merge_into_b":
                 merged = merge_fields(s.rule_b, s.rule_a, fields=("srcaddr", "dstaddr", "service"))
                 s.rule_b.raw.update(merged)
                 removed_ids.add(id(s.rule_a))
+                self.state.audit_log.append({"action": "batch_merge_into_b", "fields": ["srcaddr","dstaddr","service"], "reason": build_suggestion_reason(s)})
         if removed_ids:
             remaining = [r for r in self.state.model._rules if id(r) not in removed_ids]  # type: ignore[attr-defined]
             ps = PolicySet(source_fortigate="MERGED", columns=self.state.model._columns)  # type: ignore[attr-defined]
@@ -749,6 +760,7 @@ class DedupePage(QFrame):
             duration=2000,
             parent=self
         )
+        self.state.audit_log.append({"action": "dedupe_keep_first"})
 
     def _keep_both(self) -> None:
         row = self._groups_list.currentRow()
@@ -780,6 +792,7 @@ class DedupePage(QFrame):
             duration=2000,
             parent=self
         )
+        self.state.audit_log.append({"action": "dedupe_keep_both"})
 
     def _promote_selected(self) -> None:
         row = self._groups_list.currentRow()
@@ -821,6 +834,77 @@ class DedupePage(QFrame):
             duration=2000,
             parent=self
         )
+        self.state.audit_log.append({"action": "dedupe_promote"})
+
+
+class AuditPage(QFrame):
+    def __init__(self, state: AppState, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setObjectName("Audit")
+        self.state = state
+
+        layout = QVBoxLayout(self)
+        title = QLabel("Activity Log", self)
+        title.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        layout.addWidget(title)
+
+        self._list = QListWidget(self)
+        layout.addWidget(self._list)
+
+        buttons = QHBoxLayout()
+        self._btn_refresh = PrimaryPushButton("Refresh", self)
+        self._btn_export_json = PrimaryPushButton("Export JSON", self)
+        self._btn_export_csv = PrimaryPushButton("Export CSV", self)
+        buttons.addWidget(self._btn_refresh)
+        buttons.addStretch(1)
+        buttons.addWidget(self._btn_export_json)
+        buttons.addWidget(self._btn_export_csv)
+        layout.addLayout(buttons)
+
+        self._btn_refresh.clicked.connect(self._refresh)
+        self._btn_export_json.clicked.connect(self._export_json)
+        self._btn_export_csv.clicked.connect(self._export_csv)
+
+        self._refresh()
+
+    def _refresh(self) -> None:
+        self._list.clear()
+        for entry in self.state.audit_log:
+            self._list.addItem(str(entry))
+
+    def _export_json(self) -> None:
+        import json
+        path, _ = QFileDialog.getSaveFileName(self, "Export Audit (JSON)", os.getcwd(), "JSON Files (*.json)")
+        if not path:
+            return
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(self.state.audit_log, f, ensure_ascii=False, indent=2)
+            InfoBar.success(title='Exported', content=path, orient=Qt.Orientation.Horizontal, isClosable=True, position=InfoBarPosition.TOP_RIGHT, duration=2000, parent=self)
+        except Exception as e:
+            QMessageBox.critical(self, "Error", str(e))
+
+    def _export_csv(self) -> None:
+        import csv
+        path, _ = QFileDialog.getSaveFileName(self, "Export Audit (CSV)", os.getcwd(), "CSV Files (*.csv)")
+        if not path:
+            return
+        try:
+            # Union of keys
+            keys = []
+            seen = set()
+            for d in self.state.audit_log:
+                for k in d.keys():
+                    if k not in seen:
+                        seen.add(k)
+                        keys.append(k)
+            with open(path, "w", encoding="utf-8", newline="") as f:
+                writer = csv.DictWriter(f, fieldnames=keys)
+                writer.writeheader()
+                writer.writerows(self.state.audit_log)
+            InfoBar.success(title='Exported', content=path, orient=Qt.Orientation.Horizontal, isClosable=True, position=InfoBarPosition.TOP_RIGHT, duration=2000, parent=self)
+        except Exception as e:
+            QMessageBox.critical(self, "Error", str(e))
 
     def _export_csv(self) -> None:
         if self.state.model.rowCount() == 0:
@@ -878,6 +962,7 @@ class FluentMainWindow(FluentWindow):
         self.reviewPage = ReviewPage(self.state, parent=self)
         self.exportPage = ExportPage(self.state, parent=self)
         self.aboutPage = AboutPage(parent=self)
+        self.auditPage = AuditPage(self.state, parent=self)
 
         self._initNavigation()
         self._initWindow()
@@ -892,6 +977,7 @@ class FluentMainWindow(FluentWindow):
         self.addSubInterface(self.reviewPage, FIF.FOLDER, "Review")
         self.addSubInterface(self.exportPage, FIF.SAVE, "Export", NavigationItemPosition.BOTTOM)
         self.addSubInterface(self.aboutPage, FIF.HELP, "About", NavigationItemPosition.BOTTOM)
+        self.addSubInterface(self.auditPage, FIF.DOCUMENT, "Audit", NavigationItemPosition.BOTTOM)
 
     def _initWindow(self) -> None:
         self.resize(1200, 800)
