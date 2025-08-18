@@ -37,6 +37,8 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
+    QComboBox,
+    QLineEdit,
 )
 from PyQt6.QtCore import Qt, QUrl
 from PyQt6.QtGui import QIcon, QDesktopServices
@@ -647,9 +649,15 @@ class ExportPage(QFrame):
         self._status.setWordWrap(True)
         self._btn_open_logs = PrimaryPushButton("Open Logs Folder", self)
         self._btn_open_logs.clicked.connect(self._open_logs)
+        self._btn_save_session = PrimaryPushButton("Save Session", self)
+        self._btn_load_session = PrimaryPushButton("Load Session", self)
+        self._btn_save_session.clicked.connect(self._save_session)
+        self._btn_load_session.clicked.connect(self._load_session)
 
         layout.addWidget(title)
         layout.addWidget(export_btn)
+        layout.addWidget(self._btn_save_session)
+        layout.addWidget(self._btn_load_session)
         layout.addWidget(self._btn_open_logs)
         layout.addWidget(self._status)
 
@@ -676,6 +684,49 @@ class ExportPage(QFrame):
                 QDesktopServices.openUrl(QUrl.fromLocalFile(base_dir))
             else:
                 QMessageBox.information(self, "Logs", "App data location not available")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", str(e))
+
+    def _save_session(self) -> None:
+        import json
+        rows = [r.raw for r in self.state.model._rules]  # type: ignore[attr-defined]
+        data = {
+            "version": 2,
+            "columns": self.state.model._columns,  # type: ignore[attr-defined]
+            "rules": rows,
+            "audit_log": self.state.audit_log,
+        }
+        from PyQt6.QtCore import QStandardPaths
+        base_dir = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation) or ""
+        default_path = os.path.join(base_dir, "session.json")
+        path, _ = QFileDialog.getSaveFileName(self, "Save Session", default_path, "JSON Files (*.json)")
+        if not path:
+            return
+        try:
+            os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+            InfoBar.success(title='Session saved', content=path, orient=Qt.Orientation.Horizontal, isClosable=True, position=InfoBarPosition.TOP_RIGHT, duration=2000, parent=self)
+        except Exception as e:
+            QMessageBox.critical(self, "Error", str(e))
+
+    def _load_session(self) -> None:
+        import json
+        path, _ = QFileDialog.getOpenFileName(self, "Load Session", os.getcwd(), "JSON Files (*.json)")
+        if not path:
+            return
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            cols = data.get("columns", [])
+            rules = data.get("rules", [])
+            self.state.audit_log = data.get("audit_log", [])
+            from policy_merger.models import PolicySet as _PS
+            ps = _PS(source_fortigate="SESSION", columns=cols)
+            for row in rules:
+                ps.add_rule(row)
+            self.state.model.set_policy_sets([ps])
+            InfoBar.success(title='Session loaded', content=path, orient=Qt.Orientation.Horizontal, isClosable=True, position=InfoBarPosition.TOP_RIGHT, duration=2000, parent=self)
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
 
@@ -905,6 +956,17 @@ class AuditPage(QFrame):
         title.setAlignment(Qt.AlignmentFlag.AlignLeft)
         layout.addWidget(title)
 
+        self._filter_bar = QHBoxLayout()
+        self._search = QLineEdit(self)
+        self._search.setPlaceholderText("Search...")
+        self._action_filter = QComboBox(self)
+        self._action_filter.addItem("All")
+        self._filter_bar.addWidget(QLabel("Filter:", self))
+        self._filter_bar.addWidget(self._action_filter)
+        self._filter_bar.addStretch(1)
+        self._filter_bar.addWidget(self._search)
+        layout.addLayout(self._filter_bar)
+
         self._list = QListWidget(self)
         layout.addWidget(self._list)
 
@@ -921,13 +983,37 @@ class AuditPage(QFrame):
         self._btn_refresh.clicked.connect(self._refresh)
         self._btn_export_json.clicked.connect(self._export_json)
         self._btn_export_csv.clicked.connect(self._export_csv)
+        self._search.textChanged.connect(self._refresh)
+        self._action_filter.currentIndexChanged.connect(self._refresh)
 
         self._refresh()
 
     def _refresh(self) -> None:
         self._list.clear()
+        # Populate filter options
+        actions = sorted({d.get("action", "") for d in self.state.audit_log if d})
+        current = self._action_filter.currentText() if self._action_filter.count() > 0 else "All"
+        self._action_filter.blockSignals(True)
+        self._action_filter.clear()
+        self._action_filter.addItem("All")
+        for a in actions:
+            if a:
+                self._action_filter.addItem(a)
+        # restore selection if possible
+        idx = self._action_filter.findText(current)
+        if idx >= 0:
+            self._action_filter.setCurrentIndex(idx)
+        self._action_filter.blockSignals(False)
+
+        query = (self._search.text() or "").lower()
+        action_sel = self._action_filter.currentText()
         for entry in self.state.audit_log:
-            self._list.addItem(str(entry))
+            text = str(entry)
+            if action_sel != "All" and entry.get("action") != action_sel:
+                continue
+            if query and query not in text.lower():
+                continue
+            self._list.addItem(text)
 
     def _export_json(self) -> None:
         import json
