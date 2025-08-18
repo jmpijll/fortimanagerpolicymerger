@@ -618,6 +618,7 @@ class ExportPage(QFrame):
 class AboutPage(QFrame):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        self.setObjectName("About")
         layout = QVBoxLayout(self)
         title = QLabel("About Policy Merger", self)
         title.setAlignment(Qt.AlignmentFlag.AlignLeft)
