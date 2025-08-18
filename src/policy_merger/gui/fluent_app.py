@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import sys
 from dataclasses import dataclass, field
-from typing import List
+from typing import List, Dict, Tuple
 
 from qfluentwidgets import (
     FluentWindow,
@@ -46,6 +46,8 @@ from policy_merger.diff_engine import (
     find_similar_rules,
     group_similarity_suggestions,
     deduplicate_by_five_fields,
+    group_duplicates_by_five_fields,
+    FIVE_FIELDS,
 )
 from policy_merger.merger import write_merged_csv, merge_fields
 from policy_merger.models import PolicySet
@@ -59,6 +61,7 @@ from policy_merger.logging_config import configure_logging
 class AppState:
     policy_sets: List[PolicySet] = field(default_factory=list)
     model: PolicyTableModel = field(default_factory=PolicyTableModel)
+    duplicate_groups: Dict[Tuple[str, str, str, str, str], List] = field(default_factory=dict)
 
 
 class ImportPage(QFrame):
@@ -113,6 +116,8 @@ class ImportPage(QFrame):
                 ps_display.add_rule(r.raw)
             self.state.policy_sets = [ps_display]
             self.state.model.set_policy_sets(self.state.policy_sets)
+            # keep groups for dedupe review
+            self.state.duplicate_groups = dup_groups
             total_rules = len(unique_rules)
             dup_groups_count = sum(max(len(v) - 1, 0) for v in dup_groups.values())
             self._status.setText(
@@ -598,6 +603,178 @@ class ExportPage(QFrame):
         layout.addWidget(self._btn_open_logs)
         layout.addWidget(self._status)
 
+
+class DedupePage(QFrame):
+    def __init__(self, state: AppState, on_continue: callable | None = None, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setObjectName("Dedupe")
+        self.state = state
+        self.on_continue = on_continue
+
+        layout = QVBoxLayout(self)
+        header = QHBoxLayout()
+        title = QLabel("Review Duplicates (5 key fields)", self)
+        title.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        header.addWidget(title)
+        header.addStretch(1)
+        layout.addLayout(header)
+
+        content = QHBoxLayout()
+        self._groups_list = QListWidget(self)
+        self._items_list = QListWidget(self)
+        content.addWidget(self._groups_list, 1)
+        content.addWidget(self._items_list, 2)
+        layout.addLayout(content)
+
+        actions = QHBoxLayout()
+        self._btn_keep_first = PrimaryPushButton("Keep First (default)", self)
+        self._btn_keep_both = PrimaryPushButton("Keep Both (rename)", self)
+        self._btn_promote = PrimaryPushButton("Promote Selected", self)
+        self._btn_continue = PrimaryPushButton("Continue ➜ Suggestions", self)
+        actions.addWidget(self._btn_keep_first)
+        actions.addWidget(self._btn_keep_both)
+        actions.addWidget(self._btn_promote)
+        actions.addStretch(1)
+        actions.addWidget(self._btn_continue)
+        layout.addLayout(actions)
+
+        self._groups_list.currentRowChanged.connect(self._on_group_selected)
+        self._btn_keep_first.clicked.connect(self._keep_first)
+        self._btn_keep_both.clicked.connect(self._keep_both)
+        self._btn_promote.clicked.connect(self._promote_selected)
+        self._btn_continue.clicked.connect(lambda: self.on_continue() if self.on_continue else None)
+
+        self._load_groups()
+        TeachingTip.create(
+            target=self._groups_list,
+            icon=InfoBarIcon.INFORMATION,
+            title='Duplicates found',
+            content='Groups are exact matches on srcaddr, dstaddr, srcintf, dstintf, service. Review and adjust if needed.',
+            isClosable=True,
+            tailPosition=TeachingTipTailPosition.RIGHT,
+            duration=5000,
+            parent=self
+        )
+
+    def _load_groups(self) -> None:
+        self._groups_list.clear()
+        count = 0
+        for key, items in self.state.duplicate_groups.items():
+            if len(items) <= 1:
+                continue
+            count += 1
+            summary = "; ".join(f"{f}={v}" for f, v in zip(FIVE_FIELDS, key))
+            self._groups_list.addItem(f"Group {count} ({len(items)} rules): {summary}")
+        if count == 0:
+            InfoBar.info(
+                title='No duplicates',
+                content='No duplicate groups detected on the five fields.',
+                orient=Qt.Orientation.Horizontal,
+                isClosable=True,
+                position=InfoBarPosition.TOP_RIGHT,
+                duration=3000,
+                parent=self
+            )
+
+    def _on_group_selected(self, row: int) -> None:
+        self._items_list.clear()
+        if row < 0:
+            return
+        # Map row to corresponding key
+        keys = [k for k, v in self.state.duplicate_groups.items() if len(v) > 1]
+        if row >= len(keys):
+            return
+        key = keys[row]
+        items = self.state.duplicate_groups.get(key, [])
+        for idx, r in enumerate(items):
+            name = (r.raw.get('name', '') or '').strip()
+            src = r.source_fortigate
+            prefix = "[kept]" if idx == 0 else "[dup]"
+            self._items_list.addItem(f"{prefix} {name or '(no name)'} — {src}")
+
+    def _keep_first(self) -> None:
+        InfoBar.success(
+            title='Kept first',
+            content='Duplicates will remain excluded. You can still change later.',
+            orient=Qt.Orientation.Horizontal,
+            isClosable=True,
+            position=InfoBarPosition.TOP_RIGHT,
+            duration=2000,
+            parent=self
+        )
+
+    def _keep_both(self) -> None:
+        row = self._groups_list.currentRow()
+        if row < 0:
+            return
+        keys = [k for k, v in self.state.duplicate_groups.items() if len(v) > 1]
+        key = keys[row]
+        items = self.state.duplicate_groups.get(key, [])
+        if len(items) <= 1:
+            return
+        # Append duplicates (index >=1) into the model with rename
+        from policy_merger.models import PolicySet as _PS
+        current_cols = self.state.model._columns  # type: ignore[attr-defined]
+        ps = _PS(source_fortigate="MERGED", columns=current_cols)
+        for r in self.state.model._rules:  # type: ignore[attr-defined]
+            ps.add_rule(r.raw)
+        for dup in items[1:]:
+            row_raw = dict(dup.raw)
+            nm = row_raw.get('name', '').strip()
+            row_raw['name'] = f"{nm}-from-{dup.source_fortigate}" if nm else f"rule-from-{dup.source_fortigate}"
+            ps.add_rule(row_raw)
+        self.state.model.set_policy_sets([ps])
+        InfoBar.success(
+            title='Kept both',
+            content='Duplicates added with renamed titles.',
+            orient=Qt.Orientation.Horizontal,
+            isClosable=True,
+            position=InfoBarPosition.TOP_RIGHT,
+            duration=2000,
+            parent=self
+        )
+
+    def _promote_selected(self) -> None:
+        row = self._groups_list.currentRow()
+        item_row = self._items_list.currentRow()
+        if row < 0 or item_row < 0:
+            InfoBar.info(
+                title='Select a duplicate',
+                content='Choose a group and a duplicate to promote.',
+                orient=Qt.Orientation.Horizontal,
+                isClosable=True,
+                position=InfoBarPosition.TOP_RIGHT,
+                duration=3000,
+                parent=self
+            )
+            return
+        if item_row == 0:
+            return
+        keys = [k for k, v in self.state.duplicate_groups.items() if len(v) > 1]
+        key = keys[row]
+        items = self.state.duplicate_groups.get(key, [])
+        chosen = items[item_row]
+        kept = items[0]
+        # Replace kept in model
+        from policy_merger.models import PolicySet as _PS
+        current_cols = self.state.model._columns  # type: ignore[attr-defined]
+        ps = _PS(source_fortigate="MERGED", columns=current_cols)
+        for r in self.state.model._rules:  # type: ignore[attr-defined]
+            if r.raw == kept.raw:
+                ps.add_rule(chosen.raw)
+            else:
+                ps.add_rule(r.raw)
+        self.state.model.set_policy_sets([ps])
+        InfoBar.success(
+            title='Promoted',
+            content='Selected duplicate is now the kept rule.',
+            orient=Qt.Orientation.Horizontal,
+            isClosable=True,
+            position=InfoBarPosition.TOP_RIGHT,
+            duration=2000,
+            parent=self
+        )
+
     def _export_csv(self) -> None:
         if self.state.model.rowCount() == 0:
             QMessageBox.information(self, "Nothing to export", "Load CSVs first")
@@ -650,6 +827,7 @@ class FluentMainWindow(FluentWindow):
 
         # Pages
         self.importPage = ImportPage(self.state, on_import_complete=self._goto_review, parent=self)
+        self.dedupePage = DedupePage(self.state, on_continue=lambda: self.switchTo(self.reviewPage), parent=self)
         self.reviewPage = ReviewPage(self.state, parent=self)
         self.exportPage = ExportPage(self.state, parent=self)
         self.aboutPage = AboutPage(parent=self)
@@ -658,11 +836,12 @@ class FluentMainWindow(FluentWindow):
         self._initWindow()
 
     def _goto_review(self) -> None:
-        # Switch to Review page after successful import
-        self.switchTo(self.reviewPage)
+        # First go to Dedupe review step
+        self.switchTo(self.dedupePage)
 
     def _initNavigation(self) -> None:
         self.addSubInterface(self.importPage, FIF.FOLDER, "Import")
+        self.addSubInterface(self.dedupePage, FIF.FOLDER, "Dedupe")
         self.addSubInterface(self.reviewPage, FIF.FOLDER, "Review")
         self.addSubInterface(self.exportPage, FIF.SAVE, "Export", NavigationItemPosition.BOTTOM)
         self.addSubInterface(self.aboutPage, FIF.HELP, "About", NavigationItemPosition.BOTTOM)
