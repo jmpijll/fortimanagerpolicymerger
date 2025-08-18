@@ -37,6 +37,7 @@ from PyQt6.QtWidgets import (
     QTableWidgetItem,
 )
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QIcon
 
 from policy_merger.csv_loader import read_policy_csv
 from policy_merger.diff_engine import find_similar_rules, deduplicate_identical_rules, group_similarity_suggestions
@@ -72,6 +73,18 @@ class ImportPage(QFrame):
         layout.addWidget(title)
         layout.addWidget(open_btn)
         layout.addWidget(self._status)
+
+        # Quick tip for first-time users
+        TeachingTip.create(
+            target=open_btn,
+            icon=InfoBarIcon.INFORMATION,
+            title='Start here',
+            content='Click to select multiple FortiManager CSV exports to begin.',
+            isClosable=True,
+            tailPosition=TeachingTipTailPosition.BOTTOM,
+            duration=3000,
+            parent=self
+        )
 
     def _open_files(self) -> None:
         files, _ = QFileDialog.getOpenFileNames(
@@ -547,6 +560,18 @@ class FluentMainWindow(FluentWindow):
 
     def _initWindow(self) -> None:
         self.resize(1200, 800)
+        # Window icon (bundled with QFluentWidgets resources)
+        try:
+            self.setWindowIcon(QIcon(':/qfluentwidgets/images/logo.png'))
+        except Exception:
+            pass
+        # Navigation sizing and behavior
+        try:
+            self.navigationInterface.setMinimumExpandWidth(900)
+            self.navigationInterface.setExpandWidth(300)
+            self.navigationInterface.setCollapsible(False)
+        except Exception:
+            pass
 
 
 def run() -> None:
