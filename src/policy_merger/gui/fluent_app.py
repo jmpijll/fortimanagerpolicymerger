@@ -119,13 +119,16 @@ class ReviewPage(QFrame):
         self._btn_compare = PrimaryPushButton("Compare Selected", self)
         self._btn_toggle_columns = TogglePushButton("Compact Columns", self)
         self._btn_toggle_columns.setChecked(True)
+        self._btn_toggle_theme = PrimaryPushButton("Toggle Theme", self)
         self._btn_refresh.clicked.connect(self._refresh_suggestions)
         self._btn_resolve.clicked.connect(self._resolve_suggestions)
         self._btn_compare.clicked.connect(self._compare_selected)
         self._btn_toggle_columns.toggled.connect(self._on_toggle_columns)
+        self._btn_toggle_theme.clicked.connect(self._toggle_theme)
         header.addWidget(title)
         header.addStretch(1)
         header.addWidget(self._btn_toggle_columns)
+        header.addWidget(self._btn_toggle_theme)
         header.addWidget(self._btn_refresh)
         header.addWidget(self._btn_compare)
         header.addWidget(self._btn_resolve)
@@ -199,6 +202,7 @@ class ReviewPage(QFrame):
         self._group_keys: List[tuple] = []
         self._current_group_index: int = -1
         self._current_pair_index: int = -1
+        self._is_dark: bool = False
 
         # Wire selection changes
         self._groups_list.currentRowChanged.connect(self._on_group_selected)
@@ -397,6 +401,11 @@ class ReviewPage(QFrame):
             self._details.resizeColumnsToContents()
         except Exception:
             pass
+
+    def _toggle_theme(self) -> None:
+        # Simple toggle between light and dark themes
+        self._is_dark = not self._is_dark
+        setTheme(Theme.DARK if self._is_dark else Theme.LIGHT)
 
     def _clear_chips(self) -> None:
         while self._chip_layout.count():

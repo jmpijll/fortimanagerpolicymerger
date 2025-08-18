@@ -115,6 +115,7 @@ This phase focuses on modernizing the UI/UX and introducing a guided, confirmati
     *   [ ] Add guided tips (TeachingTip/Flyout) and theme support (light/dark, accent color).
 
 *   **Step 3.5.4: Polish & Theming**
+    *   [x] Add basic theme toggle (light/dark) control in Fluent UI.
     *   [ ] Add app icon, logo placeholder, and consistent spacing/typography.
     *   [ ] Ensure cross-platform behavior (Windows/macOS/Linux) with fallbacks if needed.
 

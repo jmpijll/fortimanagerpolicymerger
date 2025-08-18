@@ -24,6 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 -   Tests for CSV loader; About dialog; version set to 0.1.0.
  -   Fluent UI shell (`policy_merger.gui.fluent_app`) with Import/Review/Export pages wired to backend.
  -   Auto-deduplication on import and grouped similarity computation; Review page refresh and batch group actions.
+ -   Guided Review details (pairs list, diff chips), compact/full column toggle, selected-row details panel.
+ -   Basic theme toggle (light/dark) in Fluent UI.
 
 ### Fixed
 
