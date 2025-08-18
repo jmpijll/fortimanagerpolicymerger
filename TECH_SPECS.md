@@ -57,6 +57,10 @@ The application will be built with a decoupled architecture:
 -   Each policy rule will have attributes for all possible fields (name, source interface, destination address, service, action, etc.).
 -   A `PolicySet` class will manage a collection of rules loaded from a single CSV, including metadata like the source FortiGate name.
 
+### 4.1 Five-Field Identity and Similarity (Phase 3.6)
+- Exact dedupe identity uses only: `srcaddr`, `dstaddr`, `srcintf`, `dstintf`, `service` (normalized, space-collapsed).
+- Similarity suggestions consider only these five fields; per-field Jaccard on tokenized values for multi-value fields; union merges suggested.
+
 ## 5. CSV Format Assumptions and Parsing
 
 -   Input files are FortiManager CSV exports. Observed characteristics:
@@ -68,6 +72,10 @@ The application will be built with a decoupled architecture:
     -   Treat the entire cell string as authoritative; do not naïvely split by spaces when the semantics are ambiguous (e.g., `Domain Services`).
     -   For multi-value fields, Phase 1 will compare at the raw string level. Phase 2+ will introduce robust tokenization aided by object dictionaries (addresses, services, groups) to correctly parse names that include spaces.
     -   Preserve column order and unknown columns for round-trip fidelity.
+
+## 5.1 Session Persistence (Phase 3.6)
+- Session JSON includes: `version`, `columns`, `rules`, `audit_log`.
+- On load: restore table model and audit log (Audit page) for transparency.
 
 ## 6. Source FortiGate Extraction
 
@@ -113,6 +121,7 @@ The application will be built with a decoupled architecture:
 
 -   Input validation: detect malformed CSV, missing headers, or unsupported encodings; provide actionable messages.
 -   Logging: structured logs (`jsonl`) with user actions and errors; rotating files in a `logs/` directory.
+-   Audit: in-app audit log records dedupe/merge actions and supports export (CSV/JSON) with filters and search.
 -   Safety checks: prevent duplicate `policyid` in the final export; auto-reassign or prompt to resolve.
 
 ## 11. Performance Targets
