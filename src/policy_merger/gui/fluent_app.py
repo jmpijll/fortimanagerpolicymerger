@@ -504,6 +504,22 @@ class ExportPage(QFrame):
             QMessageBox.critical(self, "Error", str(e))
 
 
+class AboutPage(QFrame):
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        layout = QVBoxLayout(self)
+        title = QLabel("About Policy Merger", self)
+        title.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        try:
+            from policy_merger import __version__
+        except Exception:
+            __version__ = "dev"
+        ver = QLabel(f"Version: {__version__}", self)
+        ver.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        layout.addWidget(title)
+        layout.addWidget(ver)
+
+
 class FluentMainWindow(FluentWindow):
     def __init__(self) -> None:
         super().__init__()
@@ -514,6 +530,7 @@ class FluentMainWindow(FluentWindow):
         self.importPage = ImportPage(self.state, on_import_complete=self._goto_review, parent=self)
         self.reviewPage = ReviewPage(self.state, parent=self)
         self.exportPage = ExportPage(self.state, parent=self)
+        self.aboutPage = AboutPage(parent=self)
 
         self._initNavigation()
         self._initWindow()
@@ -526,6 +543,7 @@ class FluentMainWindow(FluentWindow):
         self.addSubInterface(self.importPage, FIF.FOLDER, "Import")
         self.addSubInterface(self.reviewPage, FIF.FOLDER, "Review")
         self.addSubInterface(self.exportPage, FIF.SAVE, "Export", NavigationItemPosition.BOTTOM)
+        self.addSubInterface(self.aboutPage, FIF.HELP, "About", NavigationItemPosition.BOTTOM)
 
     def _initWindow(self) -> None:
         self.resize(1200, 800)

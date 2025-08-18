@@ -78,6 +78,13 @@ PYTHONPATH=src python -m policy_merger.batch_merge \
 
 ```bash
 PYTHONPATH=src .venv/bin/python -m policy_merger.gui.fluent_app
+
+Key UI features:
+- Import → auto-dedupe → Review → Export flow
+- Review: compact/full columns toggle, grouped suggestions, batch actions
+- Pair list with per-field diff chips and "Open Diff"
+- Selected-row details panel
+- Theme toggle and About page
 ```
 
 ### Build app (macOS)
