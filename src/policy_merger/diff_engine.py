@@ -218,3 +218,28 @@ def find_merge_suggestions_five_fields(
     return suggestions
 
 
+def _extra_tokens(base: str, other: str) -> List[str]:
+    base_set = set(_tokenize_multi_value(base))
+    other_set = set(_tokenize_multi_value(other))
+    return sorted(other_set - base_set)
+
+
+def build_suggestion_reason(s: SimilaritySuggestion) -> str:
+    if not s.field_diffs:
+        return "Identical on the five key fields."
+    parts: List[str] = []
+    for field, (a_val, b_val) in s.field_diffs.items():
+        added_to_a = _extra_tokens(a_val, b_val)
+        added_to_b = _extra_tokens(b_val, a_val)
+        subparts: List[str] = []
+        if added_to_a:
+            subparts.append(f"add to A: {', '.join(added_to_a)}")
+        if added_to_b:
+            subparts.append(f"add to B: {', '.join(added_to_b)}")
+        if subparts:
+            parts.append(f"{field} (" + "; ".join(subparts) + ")")
+        else:
+            parts.append(f"{field} differs")
+    return "; ".join(parts)
+
+

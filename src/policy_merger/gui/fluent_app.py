@@ -49,6 +49,7 @@ from policy_merger.diff_engine import (
     group_duplicates_by_five_fields,
     FIVE_FIELDS,
     find_merge_suggestions_five_fields,
+    build_suggestion_reason,
 )
 from policy_merger.merger import write_merged_csv, merge_fields
 from policy_merger.models import PolicySet
@@ -475,6 +476,16 @@ class ReviewPage(QFrame):
             chip = PillPushButton(f, self._chip_frame)
             chip.setEnabled(False)
             self._chip_layout.addWidget(chip)
+        # Show reason as InfoBar
+        InfoBar.info(
+            title='Why suggested',
+            content=build_suggestion_reason(s),
+            orient=Qt.Orientation.Horizontal,
+            isClosable=True,
+            position=InfoBarPosition.TOP_RIGHT,
+            duration=5000,
+            parent=self
+        )
 
     def _on_toggle_columns(self, checked: bool) -> None:
         if checked:
@@ -556,7 +567,11 @@ class ReviewPage(QFrame):
         if action not in {"keep_a", "keep_b", "keep_both", "merge_into_a", "merge_into_b"}:
             QMessageBox.warning(self, "Unknown action", action)
             return
-        confirm = QMessageBox.question(self, "Apply batch", f"Apply '{action}' to {len(suggestions)} pair(s) in this group?" )
+        # Summarize reasons for confirmation
+        summary = "\n".join(f"- {build_suggestion_reason(x)}" for x in suggestions[:5])
+        more_note = "\n..." if len(suggestions) > 5 else ""
+        confirm = QMessageBox.question(self, "Apply batch",
+                                       f"Apply '{action}' to {len(suggestions)} pair(s) in this group?\n\nTop reasons:\n{summary}{more_note}")
         if confirm != QMessageBox.StandardButton.Yes:
             return
         removed_ids = set()
