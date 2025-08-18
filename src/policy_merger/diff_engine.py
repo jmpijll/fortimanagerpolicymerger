@@ -5,6 +5,14 @@ from dataclasses import dataclass
 from typing import Dict, Iterable, List, Sequence, Tuple
 
 from .models import PolicyRule
+FIVE_FIELDS: Tuple[str, str, str, str, str] = (
+    "srcaddr",
+    "dstaddr",
+    "srcintf",
+    "dstintf",
+    "service",
+)
+
 
 
 def _normalize_space(value: str) -> str:
@@ -144,5 +152,69 @@ def group_similarity_suggestions(
     for s in find_similar_rules(rules, candidate_fields=candidate_fields, min_similarity=min_similarity):
         grouped[s.stable_key].append(s)
     return grouped
+
+
+def five_field_key(rule: PolicyRule) -> Tuple[str, str, str, str, str]:
+    return tuple(_normalize_space(rule.raw.get(field, "")) for field in FIVE_FIELDS)  # type: ignore[return-value]
+
+
+def group_duplicates_by_five_fields(rules: Iterable[PolicyRule]) -> Dict[Tuple[str, str, str, str, str], List[PolicyRule]]:
+    groups: Dict[Tuple[str, str, str, str, str], List[PolicyRule]] = defaultdict(list)
+    for r in rules:
+        groups[five_field_key(r)].append(r)
+    return groups
+
+
+def deduplicate_by_five_fields(rules: Iterable[PolicyRule]) -> Tuple[List[PolicyRule], Dict[Tuple[str, str, str, str, str], List[PolicyRule]]]:
+    groups = group_duplicates_by_five_fields(rules)
+    unique: List[PolicyRule] = []
+    for key, group in groups.items():
+        # keep first, others considered duplicates for review
+        unique.append(group[0])
+    return unique, groups
+
+
+def find_merge_suggestions_five_fields(
+    rules: Iterable[PolicyRule],
+    min_similarity: float = 0.2,
+) -> List[SimilaritySuggestion]:
+    # Use only five fields for comparisons, other fields ignored
+    suggestions: List[SimilaritySuggestion] = []
+    # Group by the stable part excluding five fields, meaning if all non-five fields are same we compare within five fields
+    groups = group_by_stable_key(rules, excluded_fields=FIVE_FIELDS)
+    for stable_key, group_rules in groups.items():
+        n = len(group_rules)
+        if n < 2:
+            continue
+        for i in range(n):
+            for j in range(i + 1, n):
+                a, b = group_rules[i], group_rules[j]
+                diffs = compare_rules(a, b, FIVE_FIELDS)
+                if not diffs:
+                    suggestions.append(
+                        SimilaritySuggestion(
+                            stable_key=stable_key,
+                            field_diffs={},
+                            similarity_score=1.0,
+                            rule_a=a,
+                            rule_b=b,
+                        )
+                    )
+                    continue
+                scores: List[float] = []
+                for field, (a_val, b_val) in diffs.items():
+                    scores.append(jaccard_similarity(_tokenize_multi_value(a_val), _tokenize_multi_value(b_val)))
+                avg_score = sum(scores) / len(scores) if scores else 0.0
+                if avg_score >= min_similarity:
+                    suggestions.append(
+                        SimilaritySuggestion(
+                            stable_key=stable_key,
+                            field_diffs=diffs,
+                            similarity_score=avg_score,
+                            rule_a=a,
+                            rule_b=b,
+                        )
+                    )
+    return suggestions
 
 

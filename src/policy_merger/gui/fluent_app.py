@@ -42,7 +42,11 @@ from PyQt6.QtCore import Qt, QUrl
 from PyQt6.QtGui import QIcon, QDesktopServices
 
 from policy_merger.csv_loader import read_policy_csv
-from policy_merger.diff_engine import find_similar_rules, deduplicate_identical_rules, group_similarity_suggestions
+from policy_merger.diff_engine import (
+    find_similar_rules,
+    group_similarity_suggestions,
+    deduplicate_by_five_fields,
+)
 from policy_merger.merger import write_merged_csv, merge_fields
 from policy_merger.models import PolicySet
 from policy_merger.gui.models import PolicyTableModel
@@ -99,9 +103,9 @@ class ImportPage(QFrame):
             return
         try:
             policy_sets = [read_policy_csv(path) for path in files]
-            # Auto-dedupe identical rules across all sets
+            # Auto-dedupe on five key fields and prepare review
             all_rules = [r for ps in policy_sets for r in ps.rules]
-            unique_rules, removed = deduplicate_identical_rules(all_rules)
+            unique_rules, dup_groups = deduplicate_by_five_fields(all_rules)
             # Build a synthetic set for display with union columns preserved from first file
             display_columns = policy_sets[0].columns if policy_sets and policy_sets[0].columns else []
             ps_display = PolicySet(source_fortigate="MERGED", columns=display_columns)
@@ -110,11 +114,17 @@ class ImportPage(QFrame):
             self.state.policy_sets = [ps_display]
             self.state.model.set_policy_sets(self.state.policy_sets)
             total_rules = len(unique_rules)
-            dedupe_note = f" (removed {removed} duplicate rule(s))" if removed else ""
-            self._status.setText(f"Loaded {total_rules} unique rules from {len(files)} files{dedupe_note}")
+            dup_groups_count = sum(max(len(v) - 1, 0) for v in dup_groups.values())
+            self._status.setText(
+                f"Loaded {total_rules} unique rules from {len(files)} files (found {dup_groups_count} duplicates across {len(dup_groups)} groups)."
+            )
             if self.on_import_complete:
                 self.on_import_complete()
-            QMessageBox.information(self, "Loaded", f"Loaded {total_rules} unique rules from {len(files)} files{dedupe_note}")
+            QMessageBox.information(
+                self,
+                "Loaded",
+                f"Loaded {total_rules} unique rules from {len(files)} files. Found {dup_groups_count} duplicates across {len(dup_groups)} groups."
+            )
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
 
