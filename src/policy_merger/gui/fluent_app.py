@@ -65,6 +65,24 @@ class AppState:
     model: PolicyTableModel = field(default_factory=PolicyTableModel)
     duplicate_groups: Dict[Tuple[str, str, str, str, str], List] = field(default_factory=dict)
     audit_log: List[Dict[str, Any]] = field(default_factory=list)
+    # snapshots store list of rows (dict) and columns
+    model_snapshots: List[Tuple[List[Dict[str, str]], List[str]]] = field(default_factory=list)
+
+    def snapshot_model(self) -> None:
+        rows = [dict(r.raw) for r in self.model._rules]  # type: ignore[attr-defined]
+        cols = list(self.model._columns)  # type: ignore[attr-defined]
+        self.model_snapshots.append((rows, cols))
+
+    def restore_last_snapshot(self) -> bool:
+        if not self.model_snapshots:
+            return False
+        rows, cols = self.model_snapshots.pop()
+        from policy_merger.models import PolicySet as _PS
+        ps = _PS(source_fortigate="RESTORE", columns=cols)
+        for row in rows:
+            ps.add_rule(row)
+        self.model.set_policy_sets([ps])
+        return True
 
 
 class ImportPage(QFrame):
@@ -688,10 +706,12 @@ class DedupePage(QFrame):
         self._btn_keep_first = PrimaryPushButton("Keep First (default)", self)
         self._btn_keep_both = PrimaryPushButton("Keep Both (rename)", self)
         self._btn_promote = PrimaryPushButton("Promote Selected", self)
+        self._btn_undo = PrimaryPushButton("Undo", self)
         self._btn_continue = PrimaryPushButton("Continue ➜ Suggestions", self)
         actions.addWidget(self._btn_keep_first)
         actions.addWidget(self._btn_keep_both)
         actions.addWidget(self._btn_promote)
+        actions.addWidget(self._btn_undo)
         actions.addStretch(1)
         actions.addWidget(self._btn_continue)
         layout.addLayout(actions)
@@ -700,6 +720,7 @@ class DedupePage(QFrame):
         self._btn_keep_first.clicked.connect(self._keep_first)
         self._btn_keep_both.clicked.connect(self._keep_both)
         self._btn_promote.clicked.connect(self._promote_selected)
+        self._btn_undo.clicked.connect(self._undo)
         self._btn_continue.clicked.connect(lambda: self.on_continue() if self.on_continue else None)
 
         self._load_groups()
@@ -717,10 +738,12 @@ class DedupePage(QFrame):
     def _load_groups(self) -> None:
         self._groups_list.clear()
         count = 0
+        total_duplicates = 0
         for key, items in self.state.duplicate_groups.items():
             if len(items) <= 1:
                 continue
             count += 1
+            total_duplicates += len(items) - 1
             summary = "; ".join(f"{f}={v}" for f, v in zip(FIVE_FIELDS, key))
             self._groups_list.addItem(f"Group {count} ({len(items)} rules): {summary}")
         if count == 0:
@@ -731,6 +754,16 @@ class DedupePage(QFrame):
                 isClosable=True,
                 position=InfoBarPosition.TOP_RIGHT,
                 duration=3000,
+                parent=self
+            )
+        else:
+            InfoBar.info(
+                title='Review duplicates',
+                content=f"{total_duplicates} duplicates in {count} groups. Review, keep both, or promote.",
+                orient=Qt.Orientation.Horizontal,
+                isClosable=True,
+                position=InfoBarPosition.TOP_RIGHT,
+                duration=4000,
                 parent=self
             )
 
@@ -772,6 +805,7 @@ class DedupePage(QFrame):
         if len(items) <= 1:
             return
         # Append duplicates (index >=1) into the model with rename
+        self.state.snapshot_model()
         from policy_merger.models import PolicySet as _PS
         current_cols = self.state.model._columns  # type: ignore[attr-defined]
         ps = _PS(source_fortigate="MERGED", columns=current_cols)
@@ -816,6 +850,7 @@ class DedupePage(QFrame):
         chosen = items[item_row]
         kept = items[0]
         # Replace kept in model
+        self.state.snapshot_model()
         from policy_merger.models import PolicySet as _PS
         current_cols = self.state.model._columns  # type: ignore[attr-defined]
         ps = _PS(source_fortigate="MERGED", columns=current_cols)
@@ -835,6 +870,28 @@ class DedupePage(QFrame):
             parent=self
         )
         self.state.audit_log.append({"action": "dedupe_promote"})
+
+    def _undo(self) -> None:
+        if self.state.restore_last_snapshot():
+            InfoBar.success(
+                title='Undone',
+                content='Reverted last dedupe change.',
+                orient=Qt.Orientation.Horizontal,
+                isClosable=True,
+                position=InfoBarPosition.TOP_RIGHT,
+                duration=2000,
+                parent=self
+            )
+        else:
+            InfoBar.info(
+                title='Nothing to undo',
+                content='No prior dedupe changes in this session.',
+                orient=Qt.Orientation.Horizontal,
+                isClosable=True,
+                position=InfoBarPosition.TOP_RIGHT,
+                duration=2000,
+                parent=self
+            )
 
 
 class AuditPage(QFrame):
