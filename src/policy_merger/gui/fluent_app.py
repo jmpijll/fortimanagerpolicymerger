@@ -266,7 +266,7 @@ class ReviewPage(QFrame):
                 InfoBar.success(
                     title='Accent applied',
                     content='Using system accent color',
-                    orient=Qt.Horizontal,
+                    orient=Qt.Orientation.Horizontal,
                     isClosable=True,
                     position=InfoBarPosition.TOP_RIGHT,
                     duration=2000,
@@ -276,7 +276,7 @@ class ReviewPage(QFrame):
                 InfoBar.info(
                     title='Not supported',
                     content='System accent only on Windows/macOS',
-                    orient=Qt.Horizontal,
+                    orient=Qt.Orientation.Horizontal,
                     isClosable=True,
                     position=InfoBarPosition.TOP_RIGHT,
                     duration=3000,
@@ -286,7 +286,7 @@ class ReviewPage(QFrame):
             InfoBar.warning(
                 title='Accent failed',
                 content=str(e),
-                orient=Qt.Horizontal,
+                orient=Qt.Orientation.Horizontal,
                 isClosable=True,
                 position=InfoBarPosition.TOP_RIGHT,
                 duration=4000,
@@ -303,7 +303,7 @@ class ReviewPage(QFrame):
                 InfoBar.success(
                     title='Accent applied',
                     content=color.name(),
-                    orient=Qt.Horizontal,
+                    orient=Qt.Orientation.Horizontal,
                     isClosable=True,
                     position=InfoBarPosition.TOP_RIGHT,
                     duration=2000,
@@ -313,7 +313,7 @@ class ReviewPage(QFrame):
             InfoBar.warning(
                 title='Accent failed',
                 content=str(e),
-                orient=Qt.Horizontal,
+                orient=Qt.Orientation.Horizontal,
                 isClosable=True,
                 position=InfoBarPosition.TOP_RIGHT,
                 duration=4000,
@@ -340,7 +340,7 @@ class ReviewPage(QFrame):
         InfoBar.info(
             title='Suggestions updated',
             content=f"Found {total_pairs} similar pair(s) across {len(self._current_groups)} group(s)",
-            orient=Qt.Horizontal,
+            orient=Qt.Orientation.Horizontal,
             isClosable=True,
             position=InfoBarPosition.TOP_RIGHT,
             duration=3000,
