@@ -609,6 +609,32 @@ class ExportPage(QFrame):
         layout.addWidget(self._btn_open_logs)
         layout.addWidget(self._status)
 
+    def _export_csv(self) -> None:
+        if self.state.model.rowCount() == 0:
+            QMessageBox.information(self, "Nothing to export", "Load CSVs first")
+            return
+        out, _ = QFileDialog.getSaveFileName(self, "Save merged CSV", os.getcwd(), "CSV Files (*.csv)")
+        if not out:
+            return
+        rules = self.state.model._rules  # type: ignore[attr-defined]
+        try:
+            write_merged_csv(out, rules, preferred_columns=self.state.model._columns)  # type: ignore[attr-defined]
+            self._status.setText(f"Wrote {len(rules)} rules to {out}")
+            QMessageBox.information(self, "Exported", f"Wrote {len(rules)} rules to {out}")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", str(e))
+
+    def _open_logs(self) -> None:
+        try:
+            from PyQt6.QtCore import QStandardPaths
+            base_dir = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation) or ""
+            if base_dir:
+                QDesktopServices.openUrl(QUrl.fromLocalFile(base_dir))
+            else:
+                QMessageBox.information(self, "Logs", "App data location not available")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", str(e))
+
 
 class DedupePage(QFrame):
     def __init__(self, state: AppState, on_continue: callable | None = None, parent: QWidget | None = None) -> None:
