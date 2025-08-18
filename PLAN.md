@@ -106,18 +106,18 @@ This phase focuses on modernizing the UI/UX and introducing a guided, confirmati
 
 *   **Step 3.5.2: Backend Auto-dedupe & Suggestions**
     *   [x] On import, auto-deduplicate identical rules; auto-group similar rules by identity keys; precompute suggested actions (keep/merge) to minimize clicks.
-    *   [ ] Provide batch actions and a single confirmation dialog per group.
+    *   [x] Provide batch actions and a single confirmation dialog per group.
 
 *   **Step 3.5.3: UI Implementation (Fluent UI)**
     *   [x] Replace toolbar/table shell with a Fluent window (navigation + pages): Import, Review, Export.
     *   [x] Add batch group actions in Review (keep/merge per group with single confirmation).
-    *   [x] Implement compact review list (identity fields) in Review; keep full diff via Compare Selected; expandable row view pending.
-    *   [ ] Add guided tips (TeachingTip/Flyout) and theme support (light/dark, accent color).
+    *   [x] Implement compact review list (identity fields) in Review; keep full diff via Compare Selected; expandable row view.
+    *   [x] Add guided tips (TeachingTip/Flyout) and theme support (light/dark, accent color).
 
 *   **Step 3.5.4: Polish & Theming**
     *   [x] Add basic theme toggle (light/dark) control in Fluent UI.
-    *   [ ] Add app icon, logo placeholder, and consistent spacing/typography.
-    *   [ ] Ensure cross-platform behavior (Windows/macOS/Linux) with fallbacks if needed.
+    *   [x] Add app icon, logo placeholder, and consistent spacing/typography.
+    *   [x] Ensure cross-platform behavior (Windows/macOS/Linux) with fallbacks if needed).
 
 *   **Step 3.5.5: QA & Feedback Loop**
-    *   [ ] Gather user feedback; iterate on copy, spacing, density settings, and keyboard shortcuts.
+    *   [x] Gather user feedback; iterate on copy, spacing, density settings, and keyboard shortcuts (initial pass complete).

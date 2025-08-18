@@ -11,6 +11,7 @@ from qfluentwidgets import (
     FluentIcon as FIF,
     setTheme,
     Theme,
+    setThemeColor,
     PrimaryPushButton,
     PillPushButton,
     InfoBar,
@@ -19,6 +20,7 @@ from qfluentwidgets import (
     TeachingTip,
     TeachingTipTailPosition,
     TogglePushButton,
+    ColorDialog,
 )
 from PyQt6.QtWidgets import (
     QApplication,
@@ -36,8 +38,8 @@ from PyQt6.QtWidgets import (
     QTableWidget,
     QTableWidgetItem,
 )
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QIcon
+from PyQt6.QtCore import Qt, QUrl
+from PyQt6.QtGui import QIcon, QDesktopServices
 
 from policy_merger.csv_loader import read_policy_csv
 from policy_merger.diff_engine import find_similar_rules, deduplicate_identical_rules, group_similarity_suggestions
@@ -133,15 +135,25 @@ class ReviewPage(QFrame):
         self._btn_toggle_columns = TogglePushButton("Compact Columns", self)
         self._btn_toggle_columns.setChecked(True)
         self._btn_toggle_theme = PrimaryPushButton("Toggle Theme", self)
+        self._btn_toggle_details = TogglePushButton("Show Details", self)
+        self._btn_toggle_details.setChecked(True)
+        self._btn_system_accent = PrimaryPushButton("System Accent", self)
+        self._btn_pick_accent = PrimaryPushButton("Pick Accent", self)
         self._btn_refresh.clicked.connect(self._refresh_suggestions)
         self._btn_resolve.clicked.connect(self._resolve_suggestions)
         self._btn_compare.clicked.connect(self._compare_selected)
         self._btn_toggle_columns.toggled.connect(self._on_toggle_columns)
         self._btn_toggle_theme.clicked.connect(self._toggle_theme)
+        self._btn_toggle_details.toggled.connect(self._on_toggle_details)
+        self._btn_system_accent.clicked.connect(self._apply_system_accent)
+        self._btn_pick_accent.clicked.connect(self._pick_accent)
         header.addWidget(title)
         header.addStretch(1)
         header.addWidget(self._btn_toggle_columns)
+        header.addWidget(self._btn_toggle_details)
         header.addWidget(self._btn_toggle_theme)
+        header.addWidget(self._btn_system_accent)
+        header.addWidget(self._btn_pick_accent)
         header.addWidget(self._btn_refresh)
         header.addWidget(self._btn_compare)
         header.addWidget(self._btn_resolve)
@@ -156,6 +168,8 @@ class ReviewPage(QFrame):
 
         # Details panel for selected rule
         left = QVBoxLayout()
+        left.setContentsMargins(0, 0, 0, 0)
+        left.setSpacing(8)
         left.addWidget(self._table)
         self._details = QTableWidget(self)
         self._details.setColumnCount(2)
@@ -164,6 +178,8 @@ class ReviewPage(QFrame):
 
         # Right panel: suggestions and batch actions
         right = QVBoxLayout()
+        right.setContentsMargins(0, 0, 0, 0)
+        right.setSpacing(8)
         right.addWidget(QLabel("Suggestion Groups", self))
         self._groups_list = QListWidget(self)
         right.addWidget(self._groups_list)
@@ -238,6 +254,71 @@ class ReviewPage(QFrame):
         if compact:
             self.state.model.set_display_columns(compact)
         self._update_details_from_selected_row()
+
+    def _on_toggle_details(self, checked: bool) -> None:
+        self._details.setVisible(checked)
+
+    def _apply_system_accent(self) -> None:
+        try:
+            if sys.platform in ["win32", "darwin"]:
+                from qframelesswindow.utils import getSystemAccentColor  # type: ignore
+                setThemeColor(getSystemAccentColor(), save=False)
+                InfoBar.success(
+                    title='Accent applied',
+                    content='Using system accent color',
+                    orient=Qt.Horizontal,
+                    isClosable=True,
+                    position=InfoBarPosition.TOP_RIGHT,
+                    duration=2000,
+                    parent=self
+                )
+            else:
+                InfoBar.info(
+                    title='Not supported',
+                    content='System accent only on Windows/macOS',
+                    orient=Qt.Horizontal,
+                    isClosable=True,
+                    position=InfoBarPosition.TOP_RIGHT,
+                    duration=3000,
+                    parent=self
+                )
+        except Exception as e:
+            InfoBar.warning(
+                title='Accent failed',
+                content=str(e),
+                orient=Qt.Horizontal,
+                isClosable=True,
+                position=InfoBarPosition.TOP_RIGHT,
+                duration=4000,
+                parent=self
+            )
+
+    def _pick_accent(self) -> None:
+        try:
+            from PyQt6.QtGui import QColor
+            dlg = ColorDialog(QColor(0, 120, 215), "Choose Accent Color", self, enableAlpha=False)
+            if dlg.exec():
+                color = dlg.color()
+                setThemeColor(color, save=False)
+                InfoBar.success(
+                    title='Accent applied',
+                    content=color.name(),
+                    orient=Qt.Horizontal,
+                    isClosable=True,
+                    position=InfoBarPosition.TOP_RIGHT,
+                    duration=2000,
+                    parent=self
+                )
+        except Exception as e:
+            InfoBar.warning(
+                title='Accent failed',
+                content=str(e),
+                orient=Qt.Horizontal,
+                isClosable=True,
+                position=InfoBarPosition.TOP_RIGHT,
+                duration=4000,
+                parent=self
+            )
 
     def _refresh_suggestions(self) -> None:
         if self.state.model.rowCount() == 0:
@@ -499,9 +580,12 @@ class ExportPage(QFrame):
         export_btn.clicked.connect(self._export_csv)
         self._status = QLabel("", self)
         self._status.setWordWrap(True)
+        self._btn_open_logs = PrimaryPushButton("Open Logs Folder", self)
+        self._btn_open_logs.clicked.connect(self._open_logs)
 
         layout.addWidget(title)
         layout.addWidget(export_btn)
+        layout.addWidget(self._btn_open_logs)
         layout.addWidget(self._status)
 
     def _export_csv(self) -> None:
@@ -516,6 +600,17 @@ class ExportPage(QFrame):
             write_merged_csv(out, rules, preferred_columns=self.state.model._columns)  # type: ignore[attr-defined]
             self._status.setText(f"Wrote {len(rules)} rules to {out}")
             QMessageBox.information(self, "Exported", f"Wrote {len(rules)} rules to {out}")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", str(e))
+
+    def _open_logs(self) -> None:
+        try:
+            from PyQt6.QtCore import QStandardPaths
+            base_dir = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation) or ""
+            if base_dir:
+                QDesktopServices.openUrl(QUrl.fromLocalFile(base_dir))
+            else:
+                QMessageBox.information(self, "Logs", "App data location not available")
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
 

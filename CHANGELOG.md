@@ -26,6 +26,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  -   Auto-deduplication on import and grouped similarity computation; Review page refresh and batch group actions.
  -   Guided Review details (pairs list, diff chips), compact/full column toggle, selected-row details panel.
  -   Basic theme toggle (light/dark) in Fluent UI.
+ -   Accent color controls (system/pick) and logs folder shortcut; About page.
+
+### Changed
+
+-   Completed Phase 3.5 guided UX and theming polish; plan updated to reflect completion.
 
 ### Fixed
 
