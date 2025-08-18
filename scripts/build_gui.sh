@@ -8,7 +8,7 @@ VENV_BIN="$ROOT_DIR/.venv/bin"
 PY="$VENV_BIN/python"
 PIP="$VENV_BIN/pip"
 
-APP_ENTRY="policy_merger/gui/main.py"
+APP_ENTRY="policy_merger/gui/fluent_app.py"
 DIST_DIR="$ROOT_DIR/dist"
 
 export PYTHONPATH="$ROOT_DIR/src"
