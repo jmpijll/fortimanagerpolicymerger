@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import sys
 from dataclasses import dataclass, field
-from typing import List, Dict, Tuple, Any
+from typing import List, Dict, Tuple, Any, Set
 
 from qfluentwidgets import (
     FluentWindow,
@@ -52,6 +52,7 @@ from policy_merger.diff_engine import (
     FIVE_FIELDS,
     find_merge_suggestions_five_fields,
     build_suggestion_reason,
+    five_field_key,
 )
 from policy_merger.merger import write_merged_csv, merge_fields
 from policy_merger.models import PolicySet
@@ -69,11 +70,15 @@ class AppState:
     audit_log: List[Dict[str, Any]] = field(default_factory=list)
     # snapshots store list of rows (dict) and columns
     model_snapshots: List[Tuple[List[Dict[str, str]], List[str]]] = field(default_factory=list)
+    resolved_duplicate_keys: Set[Tuple[str, str, str, str, str]] = field(default_factory=set)
+    _resolved_keys_snapshots: List[Set[Tuple[str, str, str, str, str]]] = field(default_factory=list)
 
     def snapshot_model(self) -> None:
         rows = [dict(r.raw) for r in self.model._rules]  # type: ignore[attr-defined]
         cols = list(self.model._columns)  # type: ignore[attr-defined]
         self.model_snapshots.append((rows, cols))
+        # also snapshot resolved-keys set
+        self._resolved_keys_snapshots.append(set(self.resolved_duplicate_keys))
 
     def restore_last_snapshot(self) -> bool:
         if not self.model_snapshots:
@@ -84,6 +89,9 @@ class AppState:
         for row in rows:
             ps.add_rule(row)
         self.model.set_policy_sets([ps])
+        # restore resolved keys
+        if self._resolved_keys_snapshots:
+            self.resolved_duplicate_keys = self._resolved_keys_snapshots.pop()
         return True
 
 
@@ -129,29 +137,28 @@ class ImportPage(QFrame):
             return
         try:
             policy_sets = [read_policy_csv(path) for path in files]
-            # Auto-dedupe on five key fields and prepare review
+            # Do NOT dedupe automatically. Build model with all rules and compute duplicate groups for preview only.
             all_rules = [r for ps in policy_sets for r in ps.rules]
-            unique_rules, dup_groups = deduplicate_by_five_fields(all_rules)
-            # Build a synthetic set for display with union columns preserved from first file
             display_columns = policy_sets[0].columns if policy_sets and policy_sets[0].columns else []
             ps_display = PolicySet(source_fortigate="MERGED", columns=display_columns)
-            for r in unique_rules:
+            for r in all_rules:
                 ps_display.add_rule(r.raw)
             self.state.policy_sets = [ps_display]
             self.state.model.set_policy_sets(self.state.policy_sets)
-            # keep groups for dedupe review
+            # compute groups for dedupe review (no changes applied yet)
+            dup_groups = group_duplicates_by_five_fields(all_rules)
             self.state.duplicate_groups = dup_groups
-            total_rules = len(unique_rules)
+            total_rules = len(all_rules)
             dup_groups_count = sum(max(len(v) - 1, 0) for v in dup_groups.values())
             self._status.setText(
-                f"Loaded {total_rules} unique rules from {len(files)} files (found {dup_groups_count} duplicates across {len(dup_groups)} groups)."
+                f"Loaded {total_rules} rules from {len(files)} files (potential {dup_groups_count} duplicates across {len(dup_groups)} groups to review)."
             )
             if self.on_import_complete:
                 self.on_import_complete()
             QMessageBox.information(
                 self,
                 "Loaded",
-                f"Loaded {total_rules} unique rules from {len(files)} files. Found {dup_groups_count} duplicates across {len(dup_groups)} groups."
+                f"Loaded {total_rules} rules from {len(files)} files. Found {dup_groups_count} potential duplicates across {len(dup_groups)} groups."
             )
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
@@ -796,7 +803,8 @@ class DedupePage(QFrame):
             count += 1
             total_duplicates += len(items) - 1
             summary = "; ".join(f"{f}={v}" for f, v in zip(FIVE_FIELDS, key))
-            self._groups_list.addItem(f"Group {count} ({len(items)} rules): {summary}")
+            suffix = " (resolved)" if key in self.state.resolved_duplicate_keys else ""
+            self._groups_list.addItem(f"Group {count} ({len(items)} rules): {summary}{suffix}")
         if count == 0:
             InfoBar.info(
                 title='No duplicates',
@@ -844,6 +852,26 @@ class DedupePage(QFrame):
             duration=2000,
             parent=self
         )
+        # Apply: rebuild model keeping only first of each duplicate group not yet resolved
+        self.state.snapshot_model()
+        from policy_merger.models import PolicySet as _PS
+        current_cols = self.state.model._columns  # type: ignore[attr-defined]
+        ps = _PS(source_fortigate="MERGED", columns=current_cols)
+        # Build a set of keys to drop duplicates for
+        keys = [k for k, v in self.state.duplicate_groups.items() if len(v) > 1 and k not in self.state.resolved_duplicate_keys]
+        drop_ids = set()
+        for key in keys:
+            items = self.state.duplicate_groups[key]
+            for dup in items[1:]:
+                drop_ids.add(id(dup.raw))
+        for r in self.state.model._rules:  # type: ignore[attr-defined]
+            if id(r.raw) in drop_ids:
+                continue
+            ps.add_rule(r.raw)
+        self.state.model.set_policy_sets([ps])
+        for k in keys:
+            self.state.resolved_duplicate_keys.add(k)
+        self._load_groups()
         self.state.audit_log.append({"action": "dedupe_keep_first"})
 
     def _keep_both(self) -> None:
@@ -868,6 +896,8 @@ class DedupePage(QFrame):
             row_raw['name'] = f"{nm}-from-{dup.source_fortigate}" if nm else f"rule-from-{dup.source_fortigate}"
             ps.add_rule(row_raw)
         self.state.model.set_policy_sets([ps])
+        # Mark this group resolved
+        self.state.resolved_duplicate_keys.add(key)
         InfoBar.success(
             title='Kept both',
             content='Duplicates added with renamed titles.',
@@ -911,6 +941,8 @@ class DedupePage(QFrame):
             else:
                 ps.add_rule(r.raw)
         self.state.model.set_policy_sets([ps])
+        # Mark this group resolved
+        self.state.resolved_duplicate_keys.add(key)
         InfoBar.success(
             title='Promoted',
             content='Selected duplicate is now the kept rule.',
@@ -933,6 +965,8 @@ class DedupePage(QFrame):
                 duration=2000,
                 parent=self
             )
+            # refresh groups list to clear any resolved markers rolled back
+            self._load_groups()
         else:
             InfoBar.info(
                 title='Nothing to undo',
