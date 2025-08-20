@@ -95,6 +95,13 @@ class SimilaritySuggestion:
     similarity_score: float
     rule_a: PolicyRule
     rule_b: PolicyRule
+@dataclass
+class MergeGroupSuggestion:
+    varying_field: str
+    base_key: Tuple[str, ...]
+    context: Tuple[Tuple[str, str], ...]
+    rules: List[PolicyRule]
+
 
 
 def find_similar_rules(
@@ -264,5 +271,44 @@ def build_suggestion_reason(s: SimilaritySuggestion) -> str:
         else:
             parts.append(f"{field} differs")
     return "; ".join(parts)
+
+
+def find_group_merge_suggestions_single_field(
+    rules: Iterable[PolicyRule],
+    context_fields: Sequence[str] = STABLE_CONTEXT_FIELDS,
+) -> List[MergeGroupSuggestion]:
+    """Find groups of rules where exactly one of the five key fields varies and the other
+    four match (name/policyid ignored). Grouping also requires identical minimal context
+    (schedule/action/nat/status) to avoid unsafe merges.
+
+    The resulting group is a candidate to union the varying field across all rules into one.
+    """
+    results: List[MergeGroupSuggestion] = []
+    for varying in FIVE_FIELDS:
+        groups: Dict[Tuple[str, ...] | Tuple, List[PolicyRule]] = defaultdict(list)
+        for r in rules:
+            other_values = [
+                _normalize_space(r.raw.get(f, ""))
+                for f in FIVE_FIELDS
+                if f != varying
+            ]
+            ctx = tuple((f, _normalize_space(r.raw.get(f, ""))) for f in context_fields)
+            key = tuple(other_values) + tuple(v for kv in ctx for v in kv)
+            groups[key].append(r)
+        for key, rs in groups.items():
+            if len(rs) < 2:
+                continue
+            # Ensure there is meaningful variation in the varying field
+            token_sets = [set(_tokenize_multi_value(x.raw.get(varying, ""))) for x in rs]
+            union = set().union(*token_sets)
+            if len(union) <= min(len(ts) for ts in token_sets):
+                # nothing new to union across the group
+                continue
+            # Build context again for the group from first rule
+            r0 = rs[0]
+            ctx = tuple((f, _normalize_space(r0.raw.get(f, ""))) for f in context_fields)
+            base_key = tuple(_normalize_space(r0.raw.get(f, "")) for f in FIVE_FIELDS if f != varying)
+            results.append(MergeGroupSuggestion(varying_field=varying, base_key=base_key, context=ctx, rules=rs))
+    return results
 
 

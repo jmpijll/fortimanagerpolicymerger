@@ -54,6 +54,7 @@ from policy_merger.diff_engine import (
     find_merge_suggestions_five_fields,
     build_suggestion_reason,
     five_field_key,
+    find_group_merge_suggestions_single_field,
 )
 from policy_merger.merger import write_merged_csv, merge_fields
 from policy_merger.models import PolicySet
@@ -394,35 +395,31 @@ class ReviewPage(QFrame):
         if self.state.model.rowCount() == 0:
             QMessageBox.information(self, "No data", "Load CSVs first")
             return
-        suggestions = find_merge_suggestions_five_fields(self.state.model._rules)
-        grouped: Dict[Tuple[Tuple[str, str], ...], List] = {}
-        for s in suggestions:
-            grouped.setdefault(s.stable_key, []).append(s)
-        grouped = {k: v for k, v in grouped.items() if self.state.suggestion_group_decisions.get(k) is None}
-        self._current_groups = grouped
-        self._group_keys = list(self._current_groups.keys())
-
-        # Build linear proposals list
+        # Use single-field group merge suggestions for simple UX
+        merge_groups = find_group_merge_suggestions_single_field(self.state.model._rules)
         self._proposals = []
-        for key in self._group_keys:
-            pairs = self._current_groups[key]
-            union_map: Dict[str, set] = {f: set() for f in FIVE_FIELDS}
-            names = []
-            sources = set()
-            for p in pairs:
-                for f in FIVE_FIELDS:
-                    av = (p.rule_a.raw.get(f, '') or '').strip()
-                    bv = (p.rule_b.raw.get(f, '') or '').strip()
-                    union_map[f].update(x for x in av.split() if x)
-                    union_map[f].update(x for x in bv.split() if x)
-                names.append((p.rule_a.raw.get('name','') or '').strip())
-                names.append((p.rule_b.raw.get('name','') or '').strip())
-                sources.add(p.rule_a.source_fortigate)
-                sources.add(p.rule_b.source_fortigate)
-            preview = "\n".join(f"{f}: {' '.join(sorted(vals))}" for f, vals in union_map.items())
+        for mg in merge_groups:
+            union_tokens: set = set()
+            names: List[str] = []
+            sources: set = set()
+            for r in mg.rules:
+                union_tokens.update(x for x in (r.raw.get(mg.varying_field, '') or '').split() if x)
+                names.append((r.raw.get('name','') or '').strip())
+                sources.add(r.source_fortigate)
+            preview_lines = []
+            for f in FIVE_FIELDS:
+                if f == mg.varying_field:
+                    preview_lines.append(f"{f}: {' '.join(sorted(union_tokens))}")
+                else:
+                    preview_lines.append(f"{f}: {(mg.rules[0].raw.get(f,'') or '').strip()}")
+            desc = f"{len(mg.rules)} rule(s) differ only in '{mg.varying_field}'. Proposed merge will union that field."
             display_name = next((n for n in names if n), "(unnamed)")
-            desc = f"Found {len(pairs)} similar pair(s) from {', '.join(sorted(sources))}. Merge suggestion: union five fields into one rule (e.g., services, addresses)."
-            self._proposals.append({'key': key, 'preview': preview, 'name': display_name, 'desc': desc})
+            self._proposals.append({'key': ('single_field', mg.varying_field, tuple(mg.base_key), tuple(mg.context)),
+                                    'preview': "\n".join(preview_lines),
+                                    'name': display_name,
+                                    'desc': desc,
+                                    'rules': mg.rules,
+                                    'varying': mg.varying_field})
 
         if not self._proposals:
             # No suggestions → disable screen and offer to continue
@@ -718,11 +715,36 @@ class ReviewPage(QFrame):
     def _accept_current_proposal(self) -> None:
         if self._proposal_index < 0 or self._proposal_index >= len(self._proposals):
             return
-        key = self._proposals[self._proposal_index]['key']
+        proposal = self._proposals[self._proposal_index]
+        key = proposal['key']
         # Ask for a name for the merged rule
         name, ok = QInputDialog.getText(self, "Merged rule name", "Enter a name for the merged rule (optional):")
         merged_name = name.strip() if ok else ""
-        # Apply merge into A across all pairs in this group
+        # If this is a single-field proposal, union that field across all rules and keep first rule
+        if isinstance(key, tuple) and key and key[0] == 'single_field':
+            varying = proposal.get('varying')
+            rules = proposal.get('rules', [])
+            if not rules or not varying:
+                return
+            base = rules[0]
+            union_tokens: set = set()
+            for r in rules:
+                union_tokens.update(x for x in (r.raw.get(varying, '') or '').split() if x)
+            base.raw[varying] = ' '.join(sorted(union_tokens))
+            if merged_name:
+                base.raw['name'] = merged_name
+            removed_ids = {id(r) for r in rules[1:]}
+            remaining = [r for r in self.state.model._rules if id(r) not in removed_ids]  # type: ignore[attr-defined]
+            from policy_merger.models import PolicySet as _PS
+            ps = _PS(source_fortigate="MERGED", columns=self.state.model._columns)  # type: ignore[attr-defined]
+            for r in remaining:
+                ps.add_rule(r.raw)
+            self.state.model.set_policy_sets([ps])
+            self.state.suggestion_group_decisions[key] = "accept"
+            self._proposal_index += 1
+            self._show_current_proposal()
+            return
+        # Legacy pair-based fallback
         suggestions = self._current_groups.get(key, [])
         removed_ids = set()
         for s in suggestions:
