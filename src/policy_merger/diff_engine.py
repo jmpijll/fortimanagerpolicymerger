@@ -13,6 +13,14 @@ FIVE_FIELDS: Tuple[str, str, str, str, str] = (
     "service",
 )
 
+# Minimal context fields to anchor suggestions. These are typically stable across near-duplicates.
+STABLE_CONTEXT_FIELDS: Tuple[str, ...] = (
+    "schedule",
+    "action",
+    "nat",
+    "status",
+)
+
 
 
 def _normalize_space(value: str) -> str:
@@ -62,6 +70,21 @@ def group_by_stable_key(
         # Stable key uses all fields except those in excluded_fields
         items = tuple(sorted((k, _normalize_space(v)) for k, v in rule.raw.items() if k not in excluded))
         groups[items].append(rule)
+    return groups
+
+
+def group_by_minimal_context(rules: Iterable[PolicyRule]) -> Dict[Tuple[Tuple[str, str], ...], List[PolicyRule]]:
+    """Group rules by a minimal stable context ignoring names/ids and the five key fields.
+
+    This greatly increases the likelihood that near-duplicates differing only in the five
+    fields (and names/ids) are grouped together for merge suggestions.
+    """
+    groups: Dict[Tuple[Tuple[str, str], ...], List[PolicyRule]] = defaultdict(list)
+    for rule in rules:
+        items = []
+        for field in STABLE_CONTEXT_FIELDS:
+            items.append((field, _normalize_space(rule.raw.get(field, ""))))
+        groups[tuple(items)].append(rule)
     return groups
 
 
@@ -180,9 +203,8 @@ def find_merge_suggestions_five_fields(
 ) -> List[SimilaritySuggestion]:
     # Use only five fields for comparisons, other fields ignored
     suggestions: List[SimilaritySuggestion] = []
-    # Group by the stable part excluding five fields AND variable identifiers like name/policyid
-    # This ensures rules that differ only in name/service are grouped together for merge suggestions.
-    groups = group_by_stable_key(rules, excluded_fields=FIVE_FIELDS + ("name", "policyid"))
+    # Group by a minimal stable context to catch cases differing only in name/service
+    groups = group_by_minimal_context(rules)
     for stable_key, group_rules in groups.items():
         n = len(group_rules)
         if n < 2:

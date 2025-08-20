@@ -231,7 +231,7 @@ class ReviewPage(QFrame):
         header.addWidget(self._btn_resolve)
         header.addWidget(self._btn_continue_final)
 
-        # Content area: table + details (left) + group actions (right)
+        # Content area: table + details (left) + guided suggestions (right)
         content = QHBoxLayout()
         self._table = QTableView(self)
         self._table.setModel(self.state.model)
@@ -281,6 +281,12 @@ class ReviewPage(QFrame):
         self._btn_deny.clicked.connect(self._deny_current_proposal)
         right.addWidget(self._btn_accept)
         right.addWidget(self._btn_deny)
+
+        # Hide any legacy controls so the screen only shows proposals and continue actions
+        self._groups_list.hide()
+        self._pairs_list.hide()
+        self._btn_open_diff.hide()
+        self._chip_frame.hide()
 
         left_container = QFrame(self)
         left_container.setLayout(left)
