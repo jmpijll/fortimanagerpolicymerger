@@ -148,6 +148,8 @@ class ImportPage(QFrame):
             # compute groups for dedupe review (no changes applied yet)
             dup_groups = group_duplicates_by_five_fields(all_rules)
             self.state.duplicate_groups = dup_groups
+            # reset resolved markers on new import
+            self.state.resolved_duplicate_keys.clear()
             total_rules = len(all_rules)
             dup_groups_count = sum(max(len(v) - 1, 0) for v in dup_groups.values())
             self._status.setText(
@@ -1146,6 +1148,10 @@ class FluentMainWindow(FluentWindow):
 
     def _goto_review(self) -> None:
         # First go to Dedupe review step
+        try:
+            self.dedupePage._load_groups()
+        except Exception:
+            pass
         self.switchTo(self.dedupePage)
 
     def _initNavigation(self) -> None:
