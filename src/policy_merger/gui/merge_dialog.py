@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Dict, Tuple, List
 
-from PyQt6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QVBoxLayout, QPushButton, QGroupBox, QHBoxLayout, QCheckBox
+from PyQt6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QVBoxLayout, QPushButton, QGroupBox, QHBoxLayout, QCheckBox, QLineEdit
 
 from policy_merger.diff_engine import compare_rules
 from policy_merger.models import PolicyRule
@@ -27,6 +27,11 @@ class MergeDialog(QDialog):
             layout.addWidget(QLabel("Differing fields:", self))
             for field, (a_v, b_v) in diffs.items():
                 layout.addWidget(QLabel(f"- {field}: A='{a_v}' | B='{b_v}'", self))
+
+        # Optional new name for merged rule
+        self._name_edit = QLineEdit(self)
+        self._name_edit.setPlaceholderText("New name for merged rule (optional)")
+        layout.addWidget(self._name_edit)
 
         # Field selection for merge actions
         fields_box = QGroupBox("Fields to merge", self)
@@ -86,5 +91,9 @@ class MergeDialog(QDialog):
     def _get_selected_fields(self) -> List[str]:
         pairs = [("srcaddr", self._cb_src), ("dstaddr", self._cb_dst), ("service", self._cb_svc)]
         return [name for name, cb in pairs if cb.isChecked()]
+
+    @property
+    def merged_name(self) -> str:
+        return (self._name_edit.text() or "").strip()
 
 

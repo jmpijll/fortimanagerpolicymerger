@@ -39,6 +39,7 @@ from PyQt6.QtWidgets import (
     QTableWidgetItem,
     QComboBox,
     QLineEdit,
+    QInputDialog,
 )
 from PyQt6.QtCore import Qt, QUrl, QTimer
 from PyQt6.QtGui import QIcon, QDesktopServices
@@ -710,6 +711,9 @@ class ReviewPage(QFrame):
         if self._proposal_index < 0 or self._proposal_index >= len(self._proposals):
             return
         key = self._proposals[self._proposal_index]['key']
+        # Ask for a name for the merged rule
+        name, ok = QInputDialog.getText(self, "Merged rule name", "Enter a name for the merged rule (optional):")
+        merged_name = name.strip() if ok else ""
         # Apply merge into A across all pairs in this group
         suggestions = self._current_groups.get(key, [])
         removed_ids = set()
@@ -717,6 +721,8 @@ class ReviewPage(QFrame):
             # union five fields into the first rule (rule_a)
             merged = merge_fields(s.rule_a, s.rule_b, fields=("srcaddr", "dstaddr", "srcintf", "dstintf", "service"))
             s.rule_a.raw.update(merged)
+            if merged_name:
+                s.rule_a.raw["name"] = merged_name
             removed_ids.add(id(s.rule_b))
             self.state.audit_log.append({"action": "guided_merge_accept", "reason": build_suggestion_reason(s)})
         if removed_ids:

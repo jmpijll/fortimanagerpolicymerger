@@ -180,8 +180,9 @@ def find_merge_suggestions_five_fields(
 ) -> List[SimilaritySuggestion]:
     # Use only five fields for comparisons, other fields ignored
     suggestions: List[SimilaritySuggestion] = []
-    # Group by the stable part excluding five fields, meaning if all non-five fields are same we compare within five fields
-    groups = group_by_stable_key(rules, excluded_fields=FIVE_FIELDS)
+    # Group by the stable part excluding five fields AND variable identifiers like name/policyid
+    # This ensures rules that differ only in name/service are grouped together for merge suggestions.
+    groups = group_by_stable_key(rules, excluded_fields=FIVE_FIELDS + ("name", "policyid"))
     for stable_key, group_rules in groups.items():
         n = len(group_rules)
         if n < 2:
