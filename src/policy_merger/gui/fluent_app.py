@@ -322,6 +322,8 @@ class ReviewPage(QFrame):
         if compact:
             self.state.model.set_display_columns(compact)
         self._update_details_from_selected_row()
+        # Auto-refresh suggestions when entering the page the first time
+        QTimer.singleShot(200, self._refresh_suggestions)
 
     def _on_toggle_details(self, checked: bool) -> None:
         self._details.setVisible(checked)
@@ -429,12 +431,9 @@ class ReviewPage(QFrame):
             self._preview_label.setText("")
             self._btn_accept.setEnabled(False)
             self._btn_deny.setText("Continue ➜ Final Review")
-            # Auto-advance dialog
+            # Auto-advance prompt (non-blocking)
             if self.on_continue:
-                go = QMessageBox.question(self, "No suggestions", "No merge suggestions found. Continue to Final Review?")
-                if go == QMessageBox.StandardButton.Yes:
-                    self.state.suggestions_confirmed = True
-                    self.on_continue()
+                QTimer.singleShot(100, lambda: (self._prompt_continue()))
             return
 
         self._btn_accept.setEnabled(True)
@@ -703,15 +702,18 @@ class ReviewPage(QFrame):
         if self._proposal_index < 0 or self._proposal_index >= len(self._proposals):
             # done
             if self.on_continue:
-                done = QMessageBox.question(self, "Suggestions complete", "All suggestions reviewed. Proceed to Final Review?")
-                if done == QMessageBox.StandardButton.Yes:
-                    self.state.suggestions_confirmed = True
-                    self.on_continue()
+                self._prompt_continue()
             return
         p = self._proposals[self._proposal_index]
         self._suggestion_title.setText(f"Suggestion {self._proposal_index+1} of {len(self._proposals)} — {p['name']}")
         self._suggestion_desc.setText(str(p['desc']))
         self._preview_label.setText(str(p['preview']))
+
+    def _prompt_continue(self) -> None:
+        done = QMessageBox.question(self, "Proceed", "All suggestions reviewed or none found. Proceed to Final Review?")
+        if done == QMessageBox.StandardButton.Yes and self.on_continue:
+            self.state.suggestions_confirmed = True
+            self.on_continue()
 
     def _accept_current_proposal(self) -> None:
         if self._proposal_index < 0 or self._proposal_index >= len(self._proposals):

@@ -127,20 +127,20 @@ def find_similar_rules(
                     )
                     continue
                 # Compute average Jaccard across multi-value fields that differ
+                # Always suggest when any of the five fields differ; similarity is informational only
                 scores: List[float] = []
                 for field, (a_val, b_val) in diffs.items():
                     scores.append(jaccard_similarity(_tokenize_multi_value(a_val), _tokenize_multi_value(b_val)))
                 avg_score = sum(scores) / len(scores) if scores else 0.0
-                if avg_score >= min_similarity:
-                    suggestions.append(
-                        SimilaritySuggestion(
-                            stable_key=stable_key,
-                            field_diffs=diffs,
-                            similarity_score=avg_score,
-                            rule_a=a,
-                            rule_b=b,
-                        )
+                suggestions.append(
+                    SimilaritySuggestion(
+                        stable_key=stable_key,
+                        field_diffs=diffs,
+                        similarity_score=avg_score,
+                        rule_a=a,
+                        rule_b=b,
                     )
+                )
     return suggestions
 
 
