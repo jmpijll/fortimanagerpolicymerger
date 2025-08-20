@@ -248,52 +248,38 @@ class ReviewPage(QFrame):
         self._details.setHorizontalHeaderLabels(["Field", "Value"])
         left.addWidget(self._details)
 
-        # Right panel: suggestions and batch actions
+        # Right panel: suggestions and decisions
         right = QVBoxLayout()
         right.setContentsMargins(0, 0, 0, 0)
         right.setSpacing(8)
-        right.addWidget(QLabel("Suggestion Groups (same context, differing five fields)", self))
+        # Old advanced controls (hidden in guided mode)
         self._groups_list = QListWidget(self)
-        right.addWidget(self._groups_list)
-
-        right.addWidget(QLabel("Group Details: select a pair and confirm an action", self))
         self._pairs_list = QListWidget(self)
-        right.addWidget(self._pairs_list)
-
-        # Per-pair actions
         self._btn_open_diff = QPushButton("Open Diff", self)
         self._btn_open_diff.clicked.connect(self._open_selected_pair_diff)
-        right.addWidget(self._btn_open_diff)
-
-        # Diff chips container
-        right.addWidget(QLabel("Differing fields (chips):", self))
         self._chip_frame = QFrame(self)
         self._chip_layout = QHBoxLayout(self._chip_frame)
         self._chip_layout.setContentsMargins(0, 0, 0, 0)
         self._chip_layout.setSpacing(6)
-        right.addWidget(self._chip_frame)
 
-        # Preview label for proposed merge results
+        # Guided suggestion UI
+        self._suggestion_title = QLabel("", self)
+        self._suggestion_title.setStyleSheet("font-weight:600;")
+        right.addWidget(self._suggestion_title)
+        self._suggestion_desc = QLabel("", self)
+        self._suggestion_desc.setWordWrap(True)
+        right.addWidget(self._suggestion_desc)
+        right.addWidget(QLabel("Proposed union (five fields):", self))
         self._preview_label = QLabel("", self)
         self._preview_label.setWordWrap(True)
-        right.addWidget(QLabel("Proposed merge preview:", self))
         right.addWidget(self._preview_label)
 
-        self._btn_keep_a = QPushButton("Keep A (group)", self)
-        self._btn_keep_b = QPushButton("Keep B (group)", self)
-        self._btn_keep_both = QPushButton("Keep both (group)", self)
-        self._btn_merge_a = QPushButton("Merge into A (group)", self)
-        self._btn_merge_b = QPushButton("Merge into B (group)", self)
-        self._btn_keep_a.clicked.connect(lambda: self._apply_group_decision("keep_a"))
-        self._btn_keep_b.clicked.connect(lambda: self._apply_group_decision("keep_b"))
-        self._btn_keep_both.clicked.connect(lambda: self._apply_group_decision("keep_both"))
-        self._btn_merge_a.clicked.connect(lambda: self._apply_group_decision("merge_into_a"))
-        self._btn_merge_b.clicked.connect(lambda: self._apply_group_decision("merge_into_b"))
-        right.addWidget(self._btn_keep_a)
-        right.addWidget(self._btn_keep_b)
-        right.addWidget(self._btn_keep_both)
-        right.addWidget(self._btn_merge_a)
-        right.addWidget(self._btn_merge_b)
+        self._btn_accept = PrimaryPushButton("Merge this group into one rule", self)
+        self._btn_deny = PrimaryPushButton("Keep all rules in this group", self)
+        self._btn_accept.clicked.connect(self._accept_current_proposal)
+        self._btn_deny.clicked.connect(self._deny_current_proposal)
+        right.addWidget(self._btn_accept)
+        right.addWidget(self._btn_deny)
 
         left_container = QFrame(self)
         left_container.setLayout(left)
@@ -307,13 +293,10 @@ class ReviewPage(QFrame):
 
         self._current_groups = {}
         self._group_keys: List[tuple] = []
-        self._current_group_index: int = -1
-        self._current_pair_index: int = -1
+        self._proposal_index: int = -1
         self._is_dark: bool = False
 
         # Wire selection changes
-        self._groups_list.currentRowChanged.connect(self._on_group_selected)
-        self._pairs_list.currentRowChanged.connect(self._on_pair_selected)
         self._table.selectionModel().selectionChanged.connect(self._update_details_from_selected_row)
         # Set compact default columns (identity fields) for review
         identity_cols = [
@@ -402,44 +385,55 @@ class ReviewPage(QFrame):
         if self.state.model.rowCount() == 0:
             QMessageBox.information(self, "No data", "Load CSVs first")
             return
-        # Build five-field-based merge suggestions grouped by stable key
         suggestions = find_merge_suggestions_five_fields(self.state.model._rules)
         grouped: Dict[Tuple[Tuple[str, str], ...], List] = {}
         for s in suggestions:
             grouped.setdefault(s.stable_key, []).append(s)
+        grouped = {k: v for k, v in grouped.items() if self.state.suggestion_group_decisions.get(k) is None}
         self._current_groups = grouped
         self._group_keys = list(self._current_groups.keys())
-        self._groups_list.clear()
-        total_pairs = 0
-        for idx, key in enumerate(self._group_keys, start=1):
-            suggestions = self._current_groups[key]
-            total_pairs += len(suggestions)
-            # Collect differing fields across group
-            fields = set()
-            for s in suggestions:
-                fields.update(s.field_diffs.keys())
-            field_str = ", ".join(sorted(fields)) if fields else "(identical)"
-            self._groups_list.addItem(f"Group {idx}: {len(suggestions)} pair(s) | diffs: {field_str}")
-        InfoBar.info(
-            title='Suggestions ready',
-            content=f"Found {total_pairs} similar pair(s) across {len(self._current_groups)} group(s). Select a group, then confirm actions per pair or use batch actions.",
-            orient=Qt.Orientation.Horizontal,
-            isClosable=True,
-            position=InfoBarPosition.TOP_RIGHT,
-            duration=4000,
-            parent=self
-        )
-        # Teaching tip to guide usage
-        TeachingTip.create(
-            target=self._groups_list,
-            icon=InfoBarIcon.INFORMATION,
-            title='How to use',
-            content='1) Select a group  2) Select a pair  3) Review differing fields  4) Confirm Keep/Merge action. You remain in control: nothing is applied without your confirmation.',
-            isClosable=True,
-            tailPosition=TeachingTipTailPosition.RIGHT,
-            duration=4000,
-            parent=self
-        )
+
+        # Build linear proposals list
+        self._proposals = []
+        for key in self._group_keys:
+            pairs = self._current_groups[key]
+            union_map: Dict[str, set] = {f: set() for f in FIVE_FIELDS}
+            names = []
+            sources = set()
+            for p in pairs:
+                for f in FIVE_FIELDS:
+                    av = (p.rule_a.raw.get(f, '') or '').strip()
+                    bv = (p.rule_b.raw.get(f, '') or '').strip()
+                    union_map[f].update(x for x in av.split() if x)
+                    union_map[f].update(x for x in bv.split() if x)
+                names.append((p.rule_a.raw.get('name','') or '').strip())
+                names.append((p.rule_b.raw.get('name','') or '').strip())
+                sources.add(p.rule_a.source_fortigate)
+                sources.add(p.rule_b.source_fortigate)
+            preview = "\n".join(f"{f}: {' '.join(sorted(vals))}" for f, vals in union_map.items())
+            display_name = next((n for n in names if n), "(unnamed)")
+            desc = f"Found {len(pairs)} similar pair(s) from {', '.join(sorted(sources))}. Merge suggestion: union five fields into one rule (e.g., services, addresses)."
+            self._proposals.append({'key': key, 'preview': preview, 'name': display_name, 'desc': desc})
+
+        if not self._proposals:
+            # No suggestions → disable screen and offer to continue
+            self._suggestion_title.setText("No merge suggestions")
+            self._suggestion_desc.setText("We didn't find similar rules that differ on the five fields.")
+            self._preview_label.setText("")
+            self._btn_accept.setEnabled(False)
+            self._btn_deny.setText("Continue ➜ Final Review")
+            # Auto-advance dialog
+            if self.on_continue:
+                go = QMessageBox.question(self, "No suggestions", "No merge suggestions found. Continue to Final Review?")
+                if go == QMessageBox.StandardButton.Yes:
+                    self.state.suggestions_confirmed = True
+                    self.on_continue()
+            return
+
+        self._btn_accept.setEnabled(True)
+        self._btn_deny.setText("Keep separate (next)")
+        self._proposal_index = 0
+        self._show_current_proposal()
 
     def _compare_selected(self) -> None:
         sel = self._table.selectionModel().selectedRows()
@@ -697,6 +691,54 @@ class ReviewPage(QFrame):
         # record decision and refresh list
         self.state.suggestion_group_decisions[key] = action
         self._refresh_suggestions()
+
+    def _show_current_proposal(self) -> None:
+        if self._proposal_index < 0 or self._proposal_index >= len(self._proposals):
+            # done
+            if self.on_continue:
+                done = QMessageBox.question(self, "Suggestions complete", "All suggestions reviewed. Proceed to Final Review?")
+                if done == QMessageBox.StandardButton.Yes:
+                    self.state.suggestions_confirmed = True
+                    self.on_continue()
+            return
+        p = self._proposals[self._proposal_index]
+        self._suggestion_title.setText(f"Suggestion {self._proposal_index+1} of {len(self._proposals)} — {p['name']}")
+        self._suggestion_desc.setText(str(p['desc']))
+        self._preview_label.setText(str(p['preview']))
+
+    def _accept_current_proposal(self) -> None:
+        if self._proposal_index < 0 or self._proposal_index >= len(self._proposals):
+            return
+        key = self._proposals[self._proposal_index]['key']
+        # Apply merge into A across all pairs in this group
+        suggestions = self._current_groups.get(key, [])
+        removed_ids = set()
+        for s in suggestions:
+            # union five fields into the first rule (rule_a)
+            merged = merge_fields(s.rule_a, s.rule_b, fields=("srcaddr", "dstaddr", "srcintf", "dstintf", "service"))
+            s.rule_a.raw.update(merged)
+            removed_ids.add(id(s.rule_b))
+            self.state.audit_log.append({"action": "guided_merge_accept", "reason": build_suggestion_reason(s)})
+        if removed_ids:
+            remaining = [r for r in self.state.model._rules if id(r) not in removed_ids]  # type: ignore[attr-defined]
+            from policy_merger.models import PolicySet as _PS
+            ps = _PS(source_fortigate="MERGED", columns=self.state.model._columns)  # type: ignore[attr-defined]
+            for r in remaining:
+                ps.add_rule(r.raw)
+            self.state.model.set_policy_sets([ps])
+        self.state.suggestion_group_decisions[key] = "accept"
+        self._proposal_index += 1
+        self._show_current_proposal()
+
+    def _deny_current_proposal(self) -> None:
+        if self._proposal_index < 0 or self._proposal_index >= len(self._proposals):
+            return
+        key = self._proposals[self._proposal_index]['key']
+        # Keep all rules separate, just record decision
+        self.state.suggestion_group_decisions[key] = "deny"
+        self.state.audit_log.append({"action": "guided_merge_deny", "group_key": str(key)})
+        self._proposal_index += 1
+        self._show_current_proposal()
 
 
 class ExportPage(QFrame):
