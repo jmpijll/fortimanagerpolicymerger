@@ -40,7 +40,7 @@ from PyQt6.QtWidgets import (
     QComboBox,
     QLineEdit,
 )
-from PyQt6.QtCore import Qt, QUrl
+from PyQt6.QtCore import Qt, QUrl, QTimer
 from PyQt6.QtGui import QIcon, QDesktopServices
 
 from policy_merger.csv_loader import read_policy_csv
@@ -101,6 +101,7 @@ class ImportPage(QFrame):
         self.state = state
         self.on_import_complete = on_import_complete
         self.setObjectName("Import")
+        self._tip_shown: bool = False
 
         layout = QVBoxLayout(self)
         title = QLabel("Import FortiManager CSV Exports", self)
@@ -114,17 +115,7 @@ class ImportPage(QFrame):
         layout.addWidget(open_btn)
         layout.addWidget(self._status)
 
-        # Quick tip for first-time users
-        TeachingTip.create(
-            target=open_btn,
-            icon=InfoBarIcon.INFORMATION,
-            title='Start here',
-            content='Click to select multiple FortiManager CSV exports to begin.',
-            isClosable=True,
-            tailPosition=TeachingTipTailPosition.BOTTOM,
-            duration=3000,
-            parent=self
-        )
+        # Teaching tip is shown after the page is visible to avoid geometry errors
 
     def _open_files(self) -> None:
         files, _ = QFileDialog.getOpenFileNames(
@@ -165,16 +156,43 @@ class ImportPage(QFrame):
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
 
+    def showEvent(self, e) -> None:  # type: ignore[override]
+        super().showEvent(e)
+        if not self._tip_shown:
+            self._tip_shown = True
+            QTimer.singleShot(350, lambda: self._show_tip())
+
+    def _show_tip(self) -> None:
+        try:
+            # Find the open button as target
+            for i in range(self.layout().count()):
+                w = self.layout().itemAt(i).widget()
+                if isinstance(w, PrimaryPushButton):
+                    TeachingTip.create(
+                        target=w,
+                        icon=InfoBarIcon.INFORMATION,
+                        title='Start here',
+                        content='Select multiple FortiManager CSV exports to begin.',
+                        isClosable=True,
+                        tailPosition=TeachingTipTailPosition.BOTTOM,
+                        duration=3000,
+                        parent=self
+                    )
+                    break
+        except Exception:
+            pass
+
 
 class ReviewPage(QFrame):
-    def __init__(self, state: AppState, parent: QWidget | None = None) -> None:
+    def __init__(self, state: AppState, on_continue: callable | None = None, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.state = state
+        self.on_continue = on_continue
         self.setObjectName("Review")
 
         layout = QVBoxLayout(self)
         header = QHBoxLayout()
-        title = QLabel("Review & Resolve", self)
+        title = QLabel("Suggestions (Similar Rules) — Review & Confirm", self)
         title.setAlignment(Qt.AlignmentFlag.AlignLeft)
         self._btn_refresh = PrimaryPushButton("Refresh Suggestions", self)
         self._btn_resolve = PrimaryPushButton("Resolve Suggestions", self)
@@ -186,6 +204,7 @@ class ReviewPage(QFrame):
         self._btn_toggle_details.setChecked(True)
         self._btn_system_accent = PrimaryPushButton("System Accent", self)
         self._btn_pick_accent = PrimaryPushButton("Pick Accent", self)
+        self._btn_continue_final = PrimaryPushButton("Continue ➜ Final Review", self)
         self._btn_refresh.clicked.connect(self._refresh_suggestions)
         self._btn_resolve.clicked.connect(self._resolve_suggestions)
         self._btn_compare.clicked.connect(self._compare_selected)
@@ -194,6 +213,8 @@ class ReviewPage(QFrame):
         self._btn_toggle_details.toggled.connect(self._on_toggle_details)
         self._btn_system_accent.clicked.connect(self._apply_system_accent)
         self._btn_pick_accent.clicked.connect(self._pick_accent)
+        if self.on_continue:
+            self._btn_continue_final.clicked.connect(lambda: self.on_continue())
         header.addWidget(title)
         header.addStretch(1)
         header.addWidget(self._btn_toggle_columns)
@@ -204,6 +225,7 @@ class ReviewPage(QFrame):
         header.addWidget(self._btn_refresh)
         header.addWidget(self._btn_compare)
         header.addWidget(self._btn_resolve)
+        header.addWidget(self._btn_continue_final)
 
         # Content area: table + details (left) + group actions (right)
         content = QHBoxLayout()
@@ -227,11 +249,11 @@ class ReviewPage(QFrame):
         right = QVBoxLayout()
         right.setContentsMargins(0, 0, 0, 0)
         right.setSpacing(8)
-        right.addWidget(QLabel("Suggestion Groups", self))
+        right.addWidget(QLabel("Suggestion Groups (same context, differing five fields)", self))
         self._groups_list = QListWidget(self)
         right.addWidget(self._groups_list)
 
-        right.addWidget(QLabel("Group Details", self))
+        right.addWidget(QLabel("Group Details: select a pair and confirm an action", self))
         self._pairs_list = QListWidget(self)
         right.addWidget(self._pairs_list)
 
@@ -241,12 +263,18 @@ class ReviewPage(QFrame):
         right.addWidget(self._btn_open_diff)
 
         # Diff chips container
-        right.addWidget(QLabel("Differing fields", self))
+        right.addWidget(QLabel("Differing fields (chips):", self))
         self._chip_frame = QFrame(self)
         self._chip_layout = QHBoxLayout(self._chip_frame)
         self._chip_layout.setContentsMargins(0, 0, 0, 0)
         self._chip_layout.setSpacing(6)
         right.addWidget(self._chip_frame)
+
+        # Preview label for proposed merge results
+        self._preview_label = QLabel("", self)
+        self._preview_label.setWordWrap(True)
+        right.addWidget(QLabel("Proposed merge preview:", self))
+        right.addWidget(self._preview_label)
 
         self._btn_keep_a = QPushButton("Keep A (batch)", self)
         self._btn_keep_b = QPushButton("Keep B (batch)", self)
@@ -390,12 +418,12 @@ class ReviewPage(QFrame):
             field_str = ", ".join(sorted(fields)) if fields else "(identical)"
             self._groups_list.addItem(f"Group {idx}: {len(suggestions)} pair(s) | diffs: {field_str}")
         InfoBar.info(
-            title='Suggestions updated',
-            content=f"Found {total_pairs} similar pair(s) across {len(self._current_groups)} group(s)",
+            title='Suggestions ready',
+            content=f"Found {total_pairs} similar pair(s) across {len(self._current_groups)} group(s). Select a group, then confirm actions per pair or use batch actions.",
             orient=Qt.Orientation.Horizontal,
             isClosable=True,
             position=InfoBarPosition.TOP_RIGHT,
-            duration=3000,
+            duration=4000,
             parent=self
         )
         # Teaching tip to guide usage
@@ -403,7 +431,7 @@ class ReviewPage(QFrame):
             target=self._groups_list,
             icon=InfoBarIcon.INFORMATION,
             title='How to use',
-            content='Select a group to see its pairs, then select a pair to view differing fields. Use batch actions for the whole group.',
+            content='1) Select a group  2) Select a pair  3) Review differing fields  4) Confirm Keep/Merge action. You remain in control: nothing is applied without your confirmation.',
             isClosable=True,
             tailPosition=TeachingTipTailPosition.RIGHT,
             duration=4000,
@@ -474,6 +502,11 @@ class ReviewPage(QFrame):
             self.state.model.set_policy_sets([ps])
             # refresh pairs/chips view
             self._on_group_selected(self._groups_list.currentRow())
+        # after resolving suggestions, prompt to move to final review
+        if self.on_continue:
+            go = QMessageBox.question(self, "Proceed to Final Review", "Suggestions applied. Continue to Final Review to make manual edits?")
+            if go == QMessageBox.StandardButton.Yes:
+                self.on_continue()
 
     def _on_group_selected(self, row: int) -> None:
         self._current_group_index = row
@@ -506,6 +539,7 @@ class ReviewPage(QFrame):
             chip = PillPushButton('identical', self._chip_frame)
             chip.setEnabled(False)
             self._chip_layout.addWidget(chip)
+            self._preview_label.setText("These rules are identical on the five fields; no merge needed.")
             return
         for f in fields:
             chip = PillPushButton(f, self._chip_frame)
@@ -521,6 +555,17 @@ class ReviewPage(QFrame):
             duration=5000,
             parent=self
         )
+        # Show preview summary of resulting values for five fields (union)
+        preview_bits = []
+        for f in sorted(fields):
+            av = (s.rule_a.raw.get(f, '') or '').strip()
+            bv = (s.rule_b.raw.get(f, '') or '').strip()
+            # naive union preview (space-delimited)
+            aset = {x for x in av.split() if x}
+            bset = {x for x in bv.split() if x}
+            union = ' '.join(sorted(aset | bset))
+            preview_bits.append(f"{f}: {union}")
+        self._preview_label.setText("\n".join(preview_bits))
 
     def _on_toggle_columns(self, checked: bool) -> None:
         if checked:
@@ -748,11 +793,17 @@ class DedupePage(QFrame):
         self.on_continue = on_continue
 
         layout = QVBoxLayout(self)
-        header = QHBoxLayout()
+        header = QVBoxLayout()
         title = QLabel("Review Duplicates (5 key fields)", self)
         title.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        sub = QLabel("These rules are exact matches on srcaddr, dstaddr, srcintf, dstintf, service.\n"
+                     "- Keep First: only the first rule remains; others are removed.\n"
+                     "- Keep Both: duplicates are kept with renamed names.\n"
+                     "- Promote: replace the kept rule with a selected duplicate.\n"
+                     "Merging of similar-but-not-identical rules happens in the next step (Suggestions).", self)
+        sub.setWordWrap(True)
         header.addWidget(title)
-        header.addStretch(1)
+        header.addWidget(sub)
         layout.addLayout(header)
 
         content = QHBoxLayout()
@@ -1129,6 +1180,32 @@ class AboutPage(QFrame):
         layout.addWidget(ver)
 
 
+class FinalReviewPage(QFrame):
+    def __init__(self, state: AppState, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setObjectName("Final")
+        self.state = state
+
+        layout = QVBoxLayout(self)
+        title = QLabel("Final Review — Make Manual Adjustments", self)
+        title.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        subtitle = QLabel("This is the resulting set after Dedupe and Suggestions. You can edit any field directly before export.", self)
+        subtitle.setWordWrap(True)
+        layout.addWidget(title)
+        layout.addWidget(subtitle)
+
+        self._table = QTableView(self)
+        self._table.setModel(self.state.model)
+        self._table.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows)
+        self._table.setSelectionMode(QTableView.SelectionMode.ExtendedSelection)
+        layout.addWidget(self._table)
+
+        # Make model editable on this page
+        try:
+            self.state.model.set_editable(True)
+        except Exception:
+            pass
+
 class FluentMainWindow(FluentWindow):
     def __init__(self) -> None:
         super().__init__()
@@ -1138,7 +1215,9 @@ class FluentMainWindow(FluentWindow):
         # Pages
         self.importPage = ImportPage(self.state, on_import_complete=self._goto_review, parent=self)
         self.dedupePage = DedupePage(self.state, on_continue=lambda: self.switchTo(self.reviewPage), parent=self)
-        self.reviewPage = ReviewPage(self.state, parent=self)
+        self.reviewPage = ReviewPage(self.state, on_continue=lambda: self.switchTo(self.finalPage), parent=self)
+        # Final page shows the current model and allows manual edits
+        self.finalPage = FinalReviewPage(self.state, parent=self)
         self.exportPage = ExportPage(self.state, parent=self)
         self.aboutPage = AboutPage(parent=self)
         self.auditPage = AuditPage(self.state, parent=self)
@@ -1157,7 +1236,8 @@ class FluentMainWindow(FluentWindow):
     def _initNavigation(self) -> None:
         self.addSubInterface(self.importPage, FIF.FOLDER, "Import")
         self.addSubInterface(self.dedupePage, FIF.FOLDER, "Dedupe")
-        self.addSubInterface(self.reviewPage, FIF.FOLDER, "Review")
+        self.addSubInterface(self.reviewPage, FIF.FOLDER, "Suggestions")
+        self.addSubInterface(self.finalPage, FIF.DOCUMENT, "Final Review")
         self.addSubInterface(self.exportPage, FIF.SAVE, "Export", NavigationItemPosition.BOTTOM)
         self.addSubInterface(self.aboutPage, FIF.HELP, "About", NavigationItemPosition.BOTTOM)
         self.addSubInterface(self.auditPage, FIF.DOCUMENT, "Audit", NavigationItemPosition.BOTTOM)

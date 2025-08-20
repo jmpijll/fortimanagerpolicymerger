@@ -13,6 +13,7 @@ class PolicyTableModel(QAbstractTableModel):
         self._rules: List[PolicyRule] = []
         self._columns: List[str] = []
         self._display_columns: List[str] | None = None
+        self._editable: bool = False
         if policy_sets:
             self.set_policy_sets(policy_sets)
 
@@ -61,6 +62,27 @@ class PolicyTableModel(QAbstractTableModel):
             return section + 1
         return QVariant()
 
+    def flags(self, index: QModelIndex):  # type: ignore[override]
+        if not index.isValid():
+            return Qt.ItemFlag.NoItemFlags
+        base = Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled
+        if self._editable:
+            base |= Qt.ItemFlag.ItemIsEditable
+        return base
+
+    def setData(self, index: QModelIndex, value, role: int = Qt.ItemDataRole.EditRole):  # type: ignore[override]
+        if not index.isValid() or role != Qt.ItemDataRole.EditRole or not self._editable:
+            return False
+        row = index.row()
+        col_idx = index.column()
+        cols = self._display_columns if self._display_columns is not None else self._columns
+        if row < 0 or row >= len(self._rules) or col_idx < 0 or col_idx >= len(cols):
+            return False
+        col = cols[col_idx]
+        self._rules[row].raw[col] = str(value)
+        self.dataChanged.emit(index, index, [Qt.ItemDataRole.DisplayRole])
+        return True
+
     def set_display_columns(self, columns: List[str] | None) -> None:
         self.beginResetModel()
         self._display_columns = list(columns) if columns is not None else None
@@ -68,5 +90,11 @@ class PolicyTableModel(QAbstractTableModel):
 
     def all_columns(self) -> List[str]:
         return list(self._columns)
+
+    def set_editable(self, editable: bool) -> None:
+        if self._editable != editable:
+            self._editable = editable
+            # emit layoutChanged to update flags
+            self.layoutChanged.emit()
 
 
