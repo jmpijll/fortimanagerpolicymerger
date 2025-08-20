@@ -72,6 +72,9 @@ class AppState:
     model_snapshots: List[Tuple[List[Dict[str, str]], List[str]]] = field(default_factory=list)
     resolved_duplicate_keys: Set[Tuple[str, str, str, str, str]] = field(default_factory=set)
     _resolved_keys_snapshots: List[Set[Tuple[str, str, str, str, str]]] = field(default_factory=list)
+    dedupe_confirmed: bool = False
+    suggestions_confirmed: bool = False
+    suggestion_group_decisions: Dict[Tuple[Tuple[str, str], ...], str] = field(default_factory=dict)
 
     def snapshot_model(self) -> None:
         rows = [dict(r.raw) for r in self.model._rules]  # type: ignore[attr-defined]
@@ -276,16 +279,16 @@ class ReviewPage(QFrame):
         right.addWidget(QLabel("Proposed merge preview:", self))
         right.addWidget(self._preview_label)
 
-        self._btn_keep_a = QPushButton("Keep A (batch)", self)
-        self._btn_keep_b = QPushButton("Keep B (batch)", self)
-        self._btn_keep_both = QPushButton("Keep both (rename B)", self)
-        self._btn_merge_a = QPushButton("Merge into A (batch)", self)
-        self._btn_merge_b = QPushButton("Merge into B (batch)", self)
-        self._btn_keep_a.clicked.connect(lambda: self._apply_batch_action("keep_a"))
-        self._btn_keep_b.clicked.connect(lambda: self._apply_batch_action("keep_b"))
-        self._btn_keep_both.clicked.connect(lambda: self._apply_batch_action("keep_both"))
-        self._btn_merge_a.clicked.connect(lambda: self._apply_batch_action("merge_into_a"))
-        self._btn_merge_b.clicked.connect(lambda: self._apply_batch_action("merge_into_b"))
+        self._btn_keep_a = QPushButton("Keep A (group)", self)
+        self._btn_keep_b = QPushButton("Keep B (group)", self)
+        self._btn_keep_both = QPushButton("Keep both (group)", self)
+        self._btn_merge_a = QPushButton("Merge into A (group)", self)
+        self._btn_merge_b = QPushButton("Merge into B (group)", self)
+        self._btn_keep_a.clicked.connect(lambda: self._apply_group_decision("keep_a"))
+        self._btn_keep_b.clicked.connect(lambda: self._apply_group_decision("keep_b"))
+        self._btn_keep_both.clicked.connect(lambda: self._apply_group_decision("keep_both"))
+        self._btn_merge_a.clicked.connect(lambda: self._apply_group_decision("merge_into_a"))
+        self._btn_merge_b.clicked.connect(lambda: self._apply_group_decision("merge_into_b"))
         right.addWidget(self._btn_keep_a)
         right.addWidget(self._btn_keep_b)
         right.addWidget(self._btn_keep_both)
@@ -503,9 +506,11 @@ class ReviewPage(QFrame):
             # refresh pairs/chips view
             self._on_group_selected(self._groups_list.currentRow())
         # after resolving suggestions, prompt to move to final review
-        if self.on_continue:
-            go = QMessageBox.question(self, "Proceed to Final Review", "Suggestions applied. Continue to Final Review to make manual edits?")
-            if go == QMessageBox.StandardButton.Yes:
+        # All group decisions are explicit via group buttons; mark confirmed once no groups remain
+        if self.on_continue and not self._current_groups:
+            done = QMessageBox.question(self, "Suggestions complete", "All suggestion groups decided. Proceed to Final Review?")
+            if done == QMessageBox.StandardButton.Yes:
+                self.state.suggestions_confirmed = True
                 self.on_continue()
 
     def _on_group_selected(self, row: int) -> None:
@@ -636,6 +641,10 @@ class ReviewPage(QFrame):
         dlg.exec()
 
     def _apply_batch_action(self, action: str) -> None:
+        # kept for compatibility if called elsewhere
+        self._apply_group_decision(action)
+
+    def _apply_group_decision(self, action: str) -> None:
         if self._groups_list.currentRow() < 0 or not self._group_keys:
             QMessageBox.information(self, "Select group", "Please select a suggestion group first")
             return
@@ -647,11 +656,11 @@ class ReviewPage(QFrame):
         if action not in {"keep_a", "keep_b", "keep_both", "merge_into_a", "merge_into_b"}:
             QMessageBox.warning(self, "Unknown action", action)
             return
-        # Summarize reasons for confirmation
+        # Summarize reason preview per group
         summary = "\n".join(f"- {build_suggestion_reason(x)}" for x in suggestions[:5])
         more_note = "\n..." if len(suggestions) > 5 else ""
-        confirm = QMessageBox.question(self, "Apply batch",
-                                       f"Apply '{action}' to {len(suggestions)} pair(s) in this group?\n\nTop reasons:\n{summary}{more_note}")
+        confirm = QMessageBox.question(self, "Confirm group decision",
+                                       f"Confirm '{action}' for this group of {len(suggestions)} similar pair(s)?\n\nTop reasons:\n{summary}{more_note}")
         if confirm != QMessageBox.StandardButton.Yes:
             return
         removed_ids = set()
@@ -660,32 +669,34 @@ class ReviewPage(QFrame):
                 continue
             if action == "keep_a":
                 removed_ids.add(id(s.rule_b))
-                self.state.audit_log.append({"action": "batch_keep_a", "reason": build_suggestion_reason(s)})
+                self.state.audit_log.append({"action": "group_keep_a", "reason": build_suggestion_reason(s)})
             elif action == "keep_b":
                 removed_ids.add(id(s.rule_a))
-                self.state.audit_log.append({"action": "batch_keep_b", "reason": build_suggestion_reason(s)})
+                self.state.audit_log.append({"action": "group_keep_b", "reason": build_suggestion_reason(s)})
             elif action == "keep_both":
                 name_b = s.rule_b.raw.get("name", "").strip()
                 s.rule_b.raw["name"] = f"{name_b}-from-{s.rule_b.source_fortigate}" if name_b else f"rule-from-{s.rule_b.source_fortigate}"
-                self.state.audit_log.append({"action": "batch_keep_both", "reason": build_suggestion_reason(s)})
+                self.state.audit_log.append({"action": "group_keep_both", "reason": build_suggestion_reason(s)})
             elif action == "merge_into_a":
                 merged = merge_fields(s.rule_a, s.rule_b, fields=("srcaddr", "dstaddr", "service"))
                 s.rule_a.raw.update(merged)
                 removed_ids.add(id(s.rule_b))
-                self.state.audit_log.append({"action": "batch_merge_into_a", "fields": ["srcaddr","dstaddr","service"], "reason": build_suggestion_reason(s)})
+                self.state.audit_log.append({"action": "group_merge_into_a", "fields": ["srcaddr","dstaddr","service"], "reason": build_suggestion_reason(s)})
             elif action == "merge_into_b":
                 merged = merge_fields(s.rule_b, s.rule_a, fields=("srcaddr", "dstaddr", "service"))
                 s.rule_b.raw.update(merged)
                 removed_ids.add(id(s.rule_a))
-                self.state.audit_log.append({"action": "batch_merge_into_b", "fields": ["srcaddr","dstaddr","service"], "reason": build_suggestion_reason(s)})
+                self.state.audit_log.append({"action": "group_merge_into_b", "fields": ["srcaddr","dstaddr","service"], "reason": build_suggestion_reason(s)})
         if removed_ids:
             remaining = [r for r in self.state.model._rules if id(r) not in removed_ids]  # type: ignore[attr-defined]
-            ps = PolicySet(source_fortigate="MERGED", columns=self.state.model._columns)  # type: ignore[attr-defined]
+            from policy_merger.models import PolicySet as _PS
+            ps = _PS(source_fortigate="MERGED", columns=self.state.model._columns)  # type: ignore[attr-defined]
             for r in remaining:
                 ps.add_rule(r.raw)
             self.state.model.set_policy_sets([ps])
-            # refresh suggestions after changes
-            self._refresh_suggestions()
+        # record decision and refresh list
+        self.state.suggestion_group_decisions[key] = action
+        self._refresh_suggestions()
 
 
 class ExportPage(QFrame):
@@ -818,7 +829,7 @@ class DedupePage(QFrame):
         self._btn_keep_both = PrimaryPushButton("Keep Both (rename)", self)
         self._btn_promote = PrimaryPushButton("Promote Selected", self)
         self._btn_undo = PrimaryPushButton("Undo", self)
-        self._btn_continue = PrimaryPushButton("Continue ➜ Suggestions", self)
+        self._btn_continue = PrimaryPushButton("Confirm Dedupe & Continue ➜ Suggestions", self)
         actions.addWidget(self._btn_keep_first)
         actions.addWidget(self._btn_keep_both)
         actions.addWidget(self._btn_promote)
@@ -832,7 +843,7 @@ class DedupePage(QFrame):
         self._btn_keep_both.clicked.connect(self._keep_both)
         self._btn_promote.clicked.connect(self._promote_selected)
         self._btn_undo.clicked.connect(self._undo)
-        self._btn_continue.clicked.connect(lambda: self.on_continue() if self.on_continue else None)
+        self._btn_continue.clicked.connect(self._confirm_and_continue)
 
         self._load_groups()
         TeachingTip.create(
@@ -878,6 +889,36 @@ class DedupePage(QFrame):
                 duration=4000,
                 parent=self
             )
+
+    def _confirm_and_continue(self) -> None:
+        # Require explicit confirmation: apply default for unresolved groups (keep first) and mark confirmed
+        unresolved = [k for k, v in self.state.duplicate_groups.items() if len(v) > 1 and k not in self.state.resolved_duplicate_keys]
+        if unresolved:
+            # Apply Keep First for all unresolved groups to avoid reappearance in suggestions
+            self._apply_keep_first_for_keys(unresolved)
+        self.state.dedupe_confirmed = True
+        InfoBar.success(title='Deduplication confirmed', content='Proceeding to suggestions based on your dedupe choices.', orient=Qt.Orientation.Horizontal, isClosable=True, position=InfoBarPosition.TOP_RIGHT, duration=2000, parent=self)
+        if self.on_continue:
+            self.on_continue()
+
+    def _apply_keep_first_for_keys(self, keys: List[Tuple[str, str, str, str, str]]) -> None:
+        # Helper to remove later duplicates for provided duplicate-group keys
+        self.state.snapshot_model()
+        from policy_merger.models import PolicySet as _PS
+        current_cols = self.state.model._columns  # type: ignore[attr-defined]
+        ps = _PS(source_fortigate="MERGED", columns=current_cols)
+        drop_ids = set()
+        for key in keys:
+            items = self.state.duplicate_groups.get(key, [])
+            for dup in items[1:]:
+                drop_ids.add(id(dup.raw))
+        for r in self.state.model._rules:  # type: ignore[attr-defined]
+            if id(r.raw) in drop_ids:
+                continue
+            ps.add_rule(r.raw)
+        self.state.model.set_policy_sets([ps])
+        for k in keys:
+            self.state.resolved_duplicate_keys.add(k)
 
     def _on_group_selected(self, row: int) -> None:
         self._items_list.clear()
@@ -1237,6 +1278,7 @@ class FluentMainWindow(FluentWindow):
         self.addSubInterface(self.importPage, FIF.FOLDER, "Import")
         self.addSubInterface(self.dedupePage, FIF.FOLDER, "Dedupe")
         self.addSubInterface(self.reviewPage, FIF.FOLDER, "Suggestions")
+        # Gate Final Review: only allow navigation when suggestions confirmed
         self.addSubInterface(self.finalPage, FIF.DOCUMENT, "Final Review")
         self.addSubInterface(self.exportPage, FIF.SAVE, "Export", NavigationItemPosition.BOTTOM)
         self.addSubInterface(self.aboutPage, FIF.HELP, "About", NavigationItemPosition.BOTTOM)
