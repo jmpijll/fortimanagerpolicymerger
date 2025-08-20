@@ -223,14 +223,15 @@ class ReviewPage(QFrame):
             self._btn_continue_final.clicked.connect(lambda: self.on_continue())
         header.addWidget(title)
         header.addStretch(1)
-        header.addWidget(self._btn_toggle_columns)
-        header.addWidget(self._btn_toggle_details)
-        header.addWidget(self._btn_toggle_theme)
-        header.addWidget(self._btn_system_accent)
-        header.addWidget(self._btn_pick_accent)
-        header.addWidget(self._btn_refresh)
-        header.addWidget(self._btn_compare)
-        header.addWidget(self._btn_resolve)
+        # Hide legacy header buttons for a cleaner proposals-only UI
+        self._btn_toggle_columns.hide()
+        self._btn_toggle_details.hide()
+        self._btn_toggle_theme.hide()
+        self._btn_system_accent.hide()
+        self._btn_pick_accent.hide()
+        self._btn_compare.hide()
+        self._btn_resolve.hide()
+        self._btn_refresh.hide()
         header.addWidget(self._btn_continue_final)
 
         # Content area: table + details (left) + guided suggestions (right)
@@ -273,16 +274,19 @@ class ReviewPage(QFrame):
         self._suggestion_desc.setWordWrap(True)
         right.addWidget(self._suggestion_desc)
         right.addWidget(QLabel("Rules in this suggestion (name + five fields):", self))
-        self._rules_text = QTextEdit(self)
-        self._rules_text.setReadOnly(True)
-        self._rules_text.setFixedHeight(180)
-        right.addWidget(self._rules_text)
+        self._rules_table = QTableWidget(self)
+        self._rules_table.setColumnCount(6)
+        self._rules_table.setHorizontalHeaderLabels(["name", "srcaddr", "dstaddr", "srcintf", "dstintf", "service"])
+        self._rules_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        right.addWidget(self._rules_table)
         right.addWidget(QLabel("Proposed union (five fields):", self))
-        self._preview_label = QLabel("", self)
-        self._preview_label.setWordWrap(True)
-        right.addWidget(self._preview_label)
+        self._union_table = QTableWidget(self)
+        self._union_table.setColumnCount(2)
+        self._union_table.setHorizontalHeaderLabels(["Field", "Value"])
+        self._union_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        right.addWidget(self._union_table)
         self._name_edit = QLineEdit(self)
-        self._name_edit.setPlaceholderText("New name for merged rule (optional)")
+        self._name_edit.setPlaceholderText("New name for merged rule (required)")
         right.addWidget(self._name_edit)
 
         self._btn_accept = PrimaryPushButton("Merge this group into one rule", self)
@@ -301,9 +305,7 @@ class ReviewPage(QFrame):
         self._table.hide()
         self._details.hide()
 
-        left_container = QFrame(self)
-        left_container.setLayout(left)
-        content.addWidget(left_container, 3)
+        # Fill right-side only
         right_container = QFrame(self)
         right_container.setLayout(right)
         content.addWidget(right_container, 1)
@@ -722,14 +724,38 @@ class ReviewPage(QFrame):
         p = self._proposals[self._proposal_index]
         self._suggestion_title.setText(f"Suggestion {self._proposal_index+1} of {len(self._proposals)} — {p['name']}")
         self._suggestion_desc.setText(str(p['desc']))
-        self._preview_label.setText(str(p['preview']))
-        lines = []
-        for r in p.get('rules', []):
-            nm = (r.raw.get('name','') or '').strip()
-            vals = [f"{f}={(r.raw.get(f,'') or '').strip()}" for f in FIVE_FIELDS]
-            lines.append(f"- {nm} | " + ", ".join(vals))
-        self._rules_text.setPlainText("\n".join(lines))
+        # Fill rule table
+        rules = p.get('rules', [])
+        self._rules_table.setRowCount(len(rules))
+        for row, r in enumerate(rules):
+            values = [
+                (r.raw.get('name','') or '').strip(),
+                (r.raw.get('srcaddr','') or '').strip(),
+                (r.raw.get('dstaddr','') or '').strip(),
+                (r.raw.get('srcintf','') or '').strip(),
+                (r.raw.get('dstintf','') or '').strip(),
+                (r.raw.get('service','') or '').strip(),
+            ]
+            for col, val in enumerate(values):
+                item = QTableWidgetItem(val)
+                item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
+                self._rules_table.setItem(row, col, item)
+        self._rules_table.resizeColumnsToContents()
+        # Fill union preview table
+        union_lines = [ln.strip() for ln in str(p['preview']).split('\n') if ln.strip()]
+        self._union_table.setRowCount(len(union_lines))
+        for row, ln in enumerate(union_lines):
+            if ':' in ln:
+                field, val = ln.split(':', 1)
+            else:
+                field, val = ln, ''
+            self._union_table.setItem(row, 0, QTableWidgetItem(field.strip()))
+            self._union_table.setItem(row, 1, QTableWidgetItem(val.strip()))
+        self._union_table.resizeColumnsToContents()
+        # Default name suggestion
         self._name_edit.setText(p.get('name', ''))
+        # Enable merge only when name present
+        self._btn_accept.setEnabled(bool(self._name_edit.text().strip()))
 
     def _prompt_continue(self) -> None:
         done = QMessageBox.question(self, "Proceed", "All suggestions reviewed or none found. Proceed to Final Review?")
@@ -742,9 +768,10 @@ class ReviewPage(QFrame):
             return
         proposal = self._proposals[self._proposal_index]
         key = proposal['key']
-        # Ask for a name for the merged rule
-        name, ok = QInputDialog.getText(self, "Merged rule name", "Enter a name for the merged rule (optional):")
-        merged_name = name.strip() if ok else ""
+        merged_name = (self._name_edit.text() or '').strip()
+        if not merged_name:
+            QMessageBox.information(self, "Name required", "Please enter a name for the merged rule.")
+            return
         # If this is a single-field proposal, union that field across all rules and keep first rule
         if isinstance(key, tuple) and key and key[0] == 'single_field':
             varying = proposal.get('varying')
