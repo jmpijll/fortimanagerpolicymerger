@@ -40,6 +40,7 @@ from PyQt6.QtWidgets import (
     QComboBox,
     QLineEdit,
     QInputDialog,
+    QTextEdit,
 )
 from PyQt6.QtCore import Qt, QUrl, QTimer
 from PyQt6.QtGui import QIcon, QDesktopServices
@@ -271,10 +272,18 @@ class ReviewPage(QFrame):
         self._suggestion_desc = QLabel("", self)
         self._suggestion_desc.setWordWrap(True)
         right.addWidget(self._suggestion_desc)
+        right.addWidget(QLabel("Rules in this suggestion (name + five fields):", self))
+        self._rules_text = QTextEdit(self)
+        self._rules_text.setReadOnly(True)
+        self._rules_text.setFixedHeight(180)
+        right.addWidget(self._rules_text)
         right.addWidget(QLabel("Proposed union (five fields):", self))
         self._preview_label = QLabel("", self)
         self._preview_label.setWordWrap(True)
         right.addWidget(self._preview_label)
+        self._name_edit = QLineEdit(self)
+        self._name_edit.setPlaceholderText("New name for merged rule (optional)")
+        right.addWidget(self._name_edit)
 
         self._btn_accept = PrimaryPushButton("Merge this group into one rule", self)
         self._btn_deny = PrimaryPushButton("Keep all rules in this group", self)
@@ -288,6 +297,9 @@ class ReviewPage(QFrame):
         self._pairs_list.hide()
         self._btn_open_diff.hide()
         self._chip_frame.hide()
+        # Also hide left-side table/details in guided mode
+        self._table.hide()
+        self._details.hide()
 
         left_container = QFrame(self)
         left_container.setLayout(left)
@@ -324,7 +336,13 @@ class ReviewPage(QFrame):
             self.state.model.set_display_columns(compact)
         self._update_details_from_selected_row()
         # Auto-refresh suggestions when entering the page the first time
-        QTimer.singleShot(200, self._refresh_suggestions)
+        self._needs_initial_refresh = True
+
+    def showEvent(self, e) -> None:  # type: ignore[override]
+        super().showEvent(e)
+        if getattr(self, '_needs_initial_refresh', False):
+            self._needs_initial_refresh = False
+            QTimer.singleShot(200, self._refresh_suggestions)
 
     def _on_toggle_details(self, checked: bool) -> None:
         self._details.setVisible(checked)
@@ -705,6 +723,13 @@ class ReviewPage(QFrame):
         self._suggestion_title.setText(f"Suggestion {self._proposal_index+1} of {len(self._proposals)} — {p['name']}")
         self._suggestion_desc.setText(str(p['desc']))
         self._preview_label.setText(str(p['preview']))
+        lines = []
+        for r in p.get('rules', []):
+            nm = (r.raw.get('name','') or '').strip()
+            vals = [f"{f}={(r.raw.get(f,'') or '').strip()}" for f in FIVE_FIELDS]
+            lines.append(f"- {nm} | " + ", ".join(vals))
+        self._rules_text.setPlainText("\n".join(lines))
+        self._name_edit.setText(p.get('name', ''))
 
     def _prompt_continue(self) -> None:
         done = QMessageBox.question(self, "Proceed", "All suggestions reviewed or none found. Proceed to Final Review?")
