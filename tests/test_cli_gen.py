@@ -39,6 +39,24 @@ def test_generate_simple_policy_only():
     # even if field names vary, we set logtraffic mapping default and allow profiles if present
 
 
+def test_expand_prefixed_tokens_dstaddr():
+    # Simulate a CSV field like: 'VLAN201: Office VLAN201: WIFI VLAN10: SRV'
+    rules = [
+        make_rule(
+            name="PrefixExpand",
+            srcintf="port1",
+            dstintf="port2",
+            srcaddr="all",
+            dstaddr="VLAN201: Office VLAN201: WIFI VLAN10: SRV",
+            service="ALL",
+            schedule="always",
+            action="accept",
+        )
+    ]
+    cli = generate_fgt_cli(rules, include_objects=False, catalog=None)
+    assert 'set dstaddr "VLAN201: Office" "VLAN201: WIFI" "VLAN10: SRV"' in cli
+
+
 def test_generate_with_objects_ordering():
     catalog = ObjectCatalog(
         addresses={

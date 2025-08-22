@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import re
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 from policy_merger.models import PolicyRule
@@ -95,9 +96,43 @@ def _split_values(value: Optional[str]) -> List[str]:
     s = value.strip()
     if not s:
         return []
-    # Normalize whitespace to single spaces then split
-    tokens = [t for t in " ".join(s.split()).split(" ") if t]
-    return tokens
+    # Normalize whitespace to single spaces
+    s = " ".join(s.split())
+    # Heuristic: if more than one `<prefix>:` pattern appears, treat as prefixed groups like
+    # `VLAN201: Office VLAN201: WIFI VLAN10: SRV`, expanding to full names.
+    colon_matches = list(re.finditer(r"\b[^\s:]+:\s", s))
+    if len(colon_matches) >= 2:
+        res: List[str] = []
+        prefix: Optional[str] = None
+        for tok in s.split(" "):
+            if tok.endswith(":"):
+                prefix = tok[:-1]
+            else:
+                if prefix:
+                    res.append(f"{prefix}: {tok}")
+                else:
+                    res.append(tok)
+        # de-duplicate while preserving order
+        seen: set = set()
+        uniq: List[str] = []
+        for name in res:
+            if name not in seen:
+                seen.add(name)
+                uniq.append(name)
+        return uniq
+    # If exactly one `<prefix>:` pattern exists, assume it's a single name that includes spaces and hyphens
+    if len(colon_matches) == 1:
+        return [s]
+    # Fallback: simple whitespace split
+    tokens = [t for t in s.split(" ") if t]
+    # de-duplicate while preserving order
+    seen: set = set()
+    uniq2: List[str] = []
+    for t in tokens:
+        if t not in seen:
+            seen.add(t)
+            uniq2.append(t)
+    return uniq2
 
 
 def _emit_block(header: str, lines: Iterable[str]) -> List[str]:
