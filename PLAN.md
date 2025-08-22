@@ -86,16 +86,13 @@ This phase adds features that enhance the user experience and application robust
 
 This is a major feature for a future release, converting the merged policy into executable FortiGate CLI.
 
-*   **Step 4.1: CLI Conversion Engine**
-    *   [x] Research & References (Context7 + web): Study FortiGate CLI syntax and ordering requirements for objects/policies, idempotency patterns, and rollback strategies; collect references in `docs/REFERENCES.md` and spec in `TECH_SPECS.md#14`.
-    *   [ ] Design the mapping from the internal data model to FortiGate CLI syntax (finalize field mapping tables, name normalization rules).
-    *   [ ] Implement converters for:
-        *   Address Objects & Groups
-        *   Service Objects & Groups
-        *   VIPs and IP Pools
-        *   Firewall Policies
-    *   [ ] Export: write generated CLI to `.txt` with banner, deterministic ordering.
-    *   [ ] Tests: unit tests for each converter; fixture-driven golden file tests for full script output.
+*   **Step 4.1: CLI Conversion Engine (Policies Only)**
+    *   [x] Research & References (Context7 + web): Confirm per-policy commands for profiles/logging (e.g., `utm-status`, `ips-sensor`, `av-profile`, `webfilter-profile`, `dnsfilter-profile`, `application-list`, `ssl-ssh-profile`, `logtraffic`).
+    *   [x] Map CSV columns to FortiOS `config firewall policy` fields; derive sensible defaults.
+    *   [x] Implement policies-only generator emitting interface/address/service/schedule/action/NAT plus profile and logging bindings when present.
+    *   [x] Export: write generated CLI to `.txt` with banner.
+    *   [x] Tests: unit tests for policy generation across common fields (including profiles/logging).
+    *   [ ] Future (optional): emit objects (addresses/services/VIPs/ippools) only if we later import authoritative object dictionaries; not in current scope.
 
 ## Phase 3.5: UX Redesign & Guided Merge (New)
 

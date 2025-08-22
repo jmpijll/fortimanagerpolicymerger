@@ -114,6 +114,37 @@ def _emit_edit_block(name: str, setters: Iterable[str]) -> List[str]:
             lines.append(f"        {s}")
     lines.append("    next")
     return lines
+# -----------------------------
+# Helpers for profiles/logging
+# -----------------------------
+
+
+def _truthy(value: Optional[str]) -> bool:
+    if value is None:
+        return False
+    return str(value).strip().lower() in {"enable", "enabled", "1", "true", "yes"}
+
+
+def _has_any_profile(r: Dict[str, str]) -> bool:  # type: ignore[name-defined]
+    for k in ("av-profile", "webfilter-profile", "dnsfilter-profile", "ips-sensor", "application-list", "ssl-ssh-profile"):
+        if r.get(k):
+            return True
+    return False
+
+
+def _map_logtraffic(val: Optional[str]) -> str:
+    if not val:
+        return "utm"
+    s = str(val).strip().lower()
+    # Map common CSV values to CLI
+    if s in {"utm", "all", "disable"}:
+        return s
+    if s in {"enabled", "enable", "yes", "true"}:
+        return "all"
+    if s in {"no", "false"}:
+        return "disable"
+    return s
+
 
 
 # -----------------------------
@@ -244,6 +275,15 @@ def generate_policies(rules: Sequence[PolicyRule]) -> List[str]:
             f"set schedule {_q(r.get('schedule', 'always'))}",
             f"set action {r.get('action', 'accept')}",
             "set nat enable" if str(r.get("nat", "disable")).lower() in {"enable", "1", "true", "yes"} else None,
+            # Profiles and logging (only when present)
+            "set utm-status enable" if _truthy(r.get("utm-status")) or _has_any_profile(r) else None,
+            f"set av-profile {_q(r['av-profile'])}" if r.get('av-profile') else None,
+            f"set webfilter-profile {_q(r['webfilter-profile'])}" if r.get('webfilter-profile') else None,
+            f"set dnsfilter-profile {_q(r['dnsfilter-profile'])}" if r.get('dnsfilter-profile') else None,
+            f"set ips-sensor {_q(r['ips-sensor'])}" if r.get('ips-sensor') else None,
+            f"set application-list {_q(r['application-list'])}" if r.get('application-list') else None,
+            f"set ssl-ssh-profile {_q(r['ssl-ssh-profile'])}" if r.get('ssl-ssh-profile') else None,
+            f"set logtraffic {_map_logtraffic(r.get('logtraffic'))}" if r.get('logtraffic') else None,
         ]
         policy_lines = ["    edit 0"]
         for s in setters:
@@ -263,7 +303,7 @@ def generate_policies(rules: Sequence[PolicyRule]) -> List[str]:
 def generate_fgt_cli(
     rules: Sequence[PolicyRule],
     catalog: Optional[ObjectCatalog] = None,
-    include_objects: bool = True,
+    include_objects: bool = False,
 ) -> str:
     sections: List[str] = []
 

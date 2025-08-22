@@ -145,99 +145,49 @@ The application will be built with a decoupled architecture:
 This section specifies how the merged policy set is converted into FortiGate CLI scripts. The goal is to generate readable, idempotent scripts that can be applied safely to a unit (or via FortiManager) and re-run without unintended changes.
 
 ### 14.1 Scope
-- Address objects (IPv4)
-- Address groups
-- Custom services (TCP/UDP)
-- Service groups
-- VIPs (static NAT and port-forward)
-- IP pools (overload / one-to-one)
-- Firewall policies
+- Policies only
+  - We assume referenced objects (addresses, services, VIPs, IP pools) already exist on target devices because they come from FortiManager exports. We do not emit object creation in the current scope.
 
-### 14.2 Ordering rules (creation before use)
-1) `config firewall address`
-2) `config firewall addrgrp`
-3) `config firewall service custom`
-4) `config firewall service group`
-5) `config firewall vip`
-6) `config firewall ippool`
-7) `config firewall policy`
-
-Objects are created/updated before any policy references them. Groups are emitted after their member objects. Policies are emitted last.
+### 14.2 Ordering rules
+1) `config firewall policy`
 
 ### 14.3 Idempotency strategy
-- Emit full desired state for each object using `edit "<name>"` followed by `set ...` statements, then `next`. Re-running yields the same result.
-- For groups, prefer `set member "a" "b" ...` with the complete, sorted final list to avoid accidental duplicates. Where safe incremental updates are required, use `append member` / `unselect member`.
-- When creating new policies, use `edit 0` to allocate the next available ID, plus `set name "<policy-name>"` to make re-runs deterministic by name.
+- Emit full desired state for each policy using `edit 0` (auto-ID) and deterministic `set name "<name>"`.
 - Avoid destructive deletes in generated scripts. Provide a separate “cleanup” mode in the future.
 
 ### 14.4 Name normalization
 - Preserve original names where possible. If normalization is required, apply:
   - Trim; collapse internal whitespace; keep ASCII; replace unsupported quotes with `-`.
   - Enclose names in quotes in CLI to support spaces.
-- Ensure uniqueness within each object table; append `-1`, `-2` if needed.
 
-### 14.5 Field mapping from model → CLI
-- Address (IPv4 host/network):
-  - CLI: `config firewall address` → `edit "<name>"` → `set subnet <ip> <mask>` → optional `set comment "..."` → `next`
-- Address Group:
-  - CLI: `config firewall addrgrp` → `edit "<name>"` → `set member "<addr1>" "<addr2>" ...` → `next`
-- Service (custom):
-  - CLI: `config firewall service custom` → `edit "<name>"`
-    - If TCP ports present: `set tcp-portrange 80-80 443-443` (ranges space-separated)
-    - If UDP ports present: `set udp-portrange 500-500 4500-4500`
-    - Optional: `set comment "..."`
-    - `next`
-- Service Group:
-  - CLI: `config firewall service group` → `edit "<name>"` → `set member "HTTP" "HTTPS" ...` → `next`
-- VIP (static NAT / port-forward):
-  - CLI: `config firewall vip` → `edit "<name>"`
-    - `set extip <public-ip>`
-    - `set mappedip "<private-ip>"`
-    - Optional: `set extintf "<wan>"`
-    - For DNAT: `set portforward enable` + `set extport <p>` + `set mappedport <p>`
-    - `next`
-- IP Pool:
-  - CLI: `config firewall ippool` → `edit "<name>"` → `set startip <ip>` `set endip <ip>` → optional `set type overload` → `next`
-- Policy:
-  - CLI: `config firewall policy` → `edit 0`
-    - `set name "<name>"`
-    - `set srcintf "<if1>"` `set dstintf "<if2>"`
-    - `set srcaddr "<addr-or-group>" ...`
-    - `set dstaddr "<addr-or-group>" ...`
-    - `set service "<svc-or-group>" ...`
-    - `set schedule "always"` (or mapped value)
-    - `set action accept|deny`
-    - Optional: `set nat enable` (and `set ippool enable` `set poolname "<pool>"`)
-    - Optional: `set comments "<from-merger>"`
-    - `next`
+### 14.5 Field mapping from model → CLI (policies)
+- CLI: `config firewall policy` → `edit 0`
+  - `set name "<name>"`
+  - `set srcintf "<if1>"` `set dstintf "<if2>"`
+  - `set srcaddr "<addr-or-group>" ...`
+  - `set dstaddr "<addr-or-group>" ...`
+  - `set service "<svc-or-group>" ...`
+  - `set schedule "always"` (or mapped value)
+  - `set action accept|deny`
+  - Optional: `set nat enable` (and `set ippool enable` `set poolname "<pool>"`)
+  - Profiles when present in CSV: `set utm-status enable`, `set ips-sensor`, `set av-profile`, `set webfilter-profile`, `set dnsfilter-profile`, `set application-list`, `set ssl-ssh-profile`
+  - Logging: `set logtraffic all|utm|disable` (mapped from CSV column)
+  - Optional: `set comments "<from-merger>"`
 
 ### 14.6 Generation rules
-- Emit only objects referenced by at least one final policy unless the user opts into “emit all discovered objects”.
-- Sort emission deterministically (by name) to produce stable diffs.
-- When an aggregated field contains multiple values (e.g., `service`), map to service groups automatically when names exceed a threshold (configurable), or emit as a space-separated list when appropriate.
+- Emit only policies from the Final Review table.
+- Sort emission deterministically (by row order) to produce stable diffs.
 - Schedule defaults to `always` unless present in input.
 
 ### 14.7 Validation & safety checks
-- Detect and prevent invalid references (e.g., group member not emitted).
-- Enforce interface consistency for address groups where the platform requires it.
-- Validate port ranges and IP formats prior to emission; fail early with a clear message.
+- Validate presence of mandatory fields; fall back to `any`/`all`/`ALL` where appropriate.
+- Validate port/service lists to remain within CLI limits (delegated to device).
 
 ### 14.8 Script layout and ergonomics
 - Start of script: comment banner with version, timestamp, and file sources.
 - Add `config system console\n    set output standard\nend` as a preamble tip (commented) for long outputs.
-- Group sections with comment headers, e.g., `# Addresses`, `# Services`.
 
-### 14.9 Example snippets
-- Address
-```
-config firewall address
-    edit "HQ-NET"
-        set subnet 10.10.0.0 255.255.0.0
-        set comment "Generated by Policy Merger 1.0.0"
-    next
-end
-```
-- Policy
+### 14.9 Example snippet (policy)
 ```
 config firewall policy
     edit 0
@@ -250,11 +200,13 @@ config firewall policy
         set schedule "always"
         set action accept
         set nat enable
+        set utm-status enable
+        set ips-sensor "Block-ALL-Medium-High-Critical"
+        set logtraffic all
     next
 end
 ```
 
 ### 14.10 References (representative)
-- Fortinet FortiOS CLI Reference (addresses, services, VIPs, ippool, policy): see Fortinet documentation portal: [docs.fortinet.com](https://docs.fortinet.com/)
-- Tips on `append`/`unselect member` for groups: [yurisk.info](https://yurisk.info/2022/02/21/fortigate-cli-tips-to-avoid-costly-mistakes-save-time-make-you-more-effective/)
+- Fortinet FortiOS CLI Reference (policy): see Fortinet documentation portal: [docs.fortinet.com](https://docs.fortinet.com/)
 - Administration and best practices articles: [community.fortinet.com](https://community.fortinet.com/)
