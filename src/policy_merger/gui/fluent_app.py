@@ -115,11 +115,14 @@ class ImportPage(QFrame):
         title.setAlignment(Qt.AlignmentFlag.AlignLeft)
         open_btn = PrimaryPushButton("Open CSVs", self)
         open_btn.clicked.connect(self._open_files)
+        self._cfg_btn = PrimaryPushButton("(Optional) Open FortiGate Configs", self)
+        self._cfg_btn.clicked.connect(self._open_configs)
         self._status = QLabel("No files loaded", self)
         self._status.setWordWrap(True)
 
         layout.addWidget(title)
         layout.addWidget(open_btn)
+        layout.addWidget(self._cfg_btn)
         layout.addWidget(self._status)
 
         # Teaching tip is shown after the page is visible to avoid geometry errors
@@ -179,7 +182,7 @@ class ImportPage(QFrame):
                         target=w,
                         icon=InfoBarIcon.INFORMATION,
                         title='Start here',
-                        content='Select multiple FortiManager CSV exports to begin.',
+                        content='Select CSV exports. Optionally load FortiGate configs now; they will only be used at Export time to normalize object names.',
                         isClosable=True,
                         tailPosition=TeachingTipTailPosition.BOTTOM,
                         duration=3000,
@@ -188,6 +191,27 @@ class ImportPage(QFrame):
                     break
         except Exception:
             pass
+
+    def _open_configs(self) -> None:
+        files, _ = QFileDialog.getOpenFileNames(
+            self,
+            "Select FortiGate config files (optional)",
+            os.getcwd(),
+            "Config Files (*.conf *.txt *.*)"
+        )
+        if not files:
+            return
+        try:
+            from policy_merger.fgt_config_parser import parse_fgt_config_text, ObjectCatalog
+            catalog = ObjectCatalog()
+            for p in files:
+                with open(p, 'r', encoding='utf-8', errors='ignore') as f:
+                    text = f.read()
+                catalog = parse_fgt_config_text(text, catalog)
+            setattr(self.state, 'object_catalog', catalog)
+            InfoBar.success(title='Configs loaded', content=f"Objects: {len(catalog.addresses)} addrs, {len(catalog.services)} services", orient=Qt.Orientation.Horizontal, isClosable=True, position=InfoBarPosition.TOP_RIGHT, duration=2500, parent=self)
+        except Exception as e:
+            QMessageBox.critical(self, "Error", str(e))
 
 
 class ReviewPage(QFrame):
@@ -899,7 +923,8 @@ class ExportPage(QFrame):
         rules = self.state.model._rules  # type: ignore[attr-defined]
         try:
             # Emit policies only for now; objects will be derived from FMG object CSVs in a later step
-            cli_text = generate_fgt_cli(rules, catalog=None, include_objects=False)
+            catalog = getattr(self.state, 'object_catalog', None)
+            cli_text = generate_fgt_cli(rules, catalog=catalog, include_objects=False)
             with open(out, "w", encoding="utf-8") as f:
                 f.write(cli_text)
             self._status.setText(f"Wrote CLI script to {out}")

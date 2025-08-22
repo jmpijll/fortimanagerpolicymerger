@@ -96,43 +96,30 @@ def _split_values(value: Optional[str]) -> List[str]:
     s = value.strip()
     if not s:
         return []
-    # Normalize whitespace to single spaces
+    # Normalize whitespace to single spaces and split
     s = " ".join(s.split())
-    # Heuristic: if more than one `<prefix>:` pattern appears, treat as prefixed groups like
-    # `VLAN201: Office VLAN201: WIFI VLAN10: SRV`, expanding to full names.
-    colon_matches = list(re.finditer(r"\b[^\s:]+:\s", s))
-    if len(colon_matches) >= 2:
-        res: List[str] = []
-        prefix: Optional[str] = None
-        for tok in s.split(" "):
-            if tok.endswith(":"):
-                prefix = tok[:-1]
-            else:
-                if prefix:
-                    res.append(f"{prefix}: {tok}")
-                else:
-                    res.append(tok)
-        # de-duplicate while preserving order
-        seen: set = set()
-        uniq: List[str] = []
-        for name in res:
-            if name not in seen:
-                seen.add(name)
-                uniq.append(name)
-        return uniq
-    # If exactly one `<prefix>:` pattern exists, assume it's a single name that includes spaces and hyphens
-    if len(colon_matches) == 1:
-        return [s]
-    # Fallback: simple whitespace split
-    tokens = [t for t in s.split(" ") if t]
+    raw = [t for t in s.split(" ") if t]
+    # Pair tokens like ["VLAN201:", "Office"] into "VLAN201: Office"
+    paired: List[str] = []
+    i = 0
+    while i < len(raw):
+        tok = raw[i]
+        if tok.endswith(":") and i + 1 < len(raw):
+            paired.append(f"{tok} {raw[i+1]}")
+            i += 2
+            continue
+        if tok.endswith(":"):
+            tok = tok[:-1]
+        paired.append(tok)
+        i += 1
     # de-duplicate while preserving order
     seen: set = set()
-    uniq2: List[str] = []
-    for t in tokens:
+    uniq: List[str] = []
+    for t in paired:
         if t not in seen:
             seen.add(t)
-            uniq2.append(t)
-    return uniq2
+            uniq.append(t)
+    return uniq
 
 
 def _emit_block(header: str, lines: Iterable[str]) -> List[str]:

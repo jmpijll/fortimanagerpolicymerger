@@ -20,6 +20,13 @@ def _tokenize(value: str) -> List[str]:
 def _join_tokens(a_tokens: Sequence[str], b_tokens: Sequence[str]) -> str:
     seen = set()
     ordered: List[str] = []
+    # If either side is 'all' or 'any', return that alone
+    lower_a = {t.lower() for t in a_tokens}
+    lower_b = {t.lower() for t in b_tokens}
+    if "all" in lower_a or "any" in lower_a:
+        return "all" if "all" in lower_a else "any"
+    if "all" in lower_b or "any" in lower_b:
+        return "all" if "all" in lower_b else "any"
     for token in list(a_tokens) + list(b_tokens):
         if token not in seen:
             seen.add(token)
