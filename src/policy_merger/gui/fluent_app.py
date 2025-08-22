@@ -64,6 +64,7 @@ from policy_merger.gui.merge_dialog import MergeDialog
 from policy_merger.gui.diff_dialog import DiffDialog
 from policy_merger.logging_config import configure_logging
 from policy_merger.cli_gen import generate_fgt_cli, ObjectCatalog
+from policy_merger.fgt_config_parser import parse_fgt_config_text
 
 
 @dataclass
@@ -850,6 +851,8 @@ class ExportPage(QFrame):
         self._status.setWordWrap(True)
         self._btn_open_logs = PrimaryPushButton("Open Logs Folder", self)
         self._btn_open_logs.clicked.connect(self._open_logs)
+        self._btn_load_objects = PrimaryPushButton("Load FortiGate Config (objects)", self)
+        self._btn_load_objects.clicked.connect(self._load_objects)
         self._btn_save_session = PrimaryPushButton("Save Session", self)
         self._btn_load_session = PrimaryPushButton("Load Session", self)
         self._btn_save_session.clicked.connect(self._save_session)
@@ -861,6 +864,7 @@ class ExportPage(QFrame):
         layout.addWidget(self._btn_save_session)
         layout.addWidget(self._btn_load_session)
         layout.addWidget(self._btn_open_logs)
+        layout.addWidget(self._btn_load_objects)
         layout.addWidget(self._status)
 
     def _export_csv(self) -> None:
@@ -898,12 +902,26 @@ class ExportPage(QFrame):
             return
         rules = self.state.model._rules  # type: ignore[attr-defined]
         try:
-            # For now, emit policies only; objects will be supported in a later step
-            cli_text = generate_fgt_cli(rules, catalog=None, include_objects=False)
+            catalog = getattr(self.state, 'object_catalog', None)
+            cli_text = generate_fgt_cli(rules, catalog=catalog, include_objects=bool(catalog))
             with open(out, "w", encoding="utf-8") as f:
                 f.write(cli_text)
             self._status.setText(f"Wrote CLI script to {out}")
             QMessageBox.information(self, "Exported", f"Wrote CLI script to {out}")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", str(e))
+
+    def _load_objects(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(self, "Open FortiGate config", os.getcwd(), "Config Files (*.conf *.txt *.*)")
+        if not path:
+            return
+        try:
+            with open(path, 'r', encoding='utf-8', errors='ignore') as f:
+                text = f.read()
+            catalog = parse_fgt_config_text(text)
+            # Store on state for later CLI export
+            setattr(self.state, 'object_catalog', catalog)
+            InfoBar.success(title='Objects loaded', content=f"{len(catalog.addresses)} addrs, {len(catalog.addr_groups)} groups, {len(catalog.services)} services", orient=Qt.Orientation.Horizontal, isClosable=True, position=InfoBarPosition.TOP_RIGHT, duration=2500, parent=self)
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
 
