@@ -63,6 +63,7 @@ from policy_merger.gui.models import PolicyTableModel
 from policy_merger.gui.merge_dialog import MergeDialog
 from policy_merger.gui.diff_dialog import DiffDialog
 from policy_merger.logging_config import configure_logging
+from policy_merger.cli_gen import generate_fgt_cli, ObjectCatalog
 
 
 @dataclass
@@ -273,6 +274,9 @@ class ReviewPage(QFrame):
         self._suggestion_desc = QLabel("", self)
         self._suggestion_desc.setWordWrap(True)
         right.addWidget(self._suggestion_desc)
+        # Legacy preview label (kept to avoid crashes when old code paths reference it)
+        self._preview_label = QLabel("", self)
+        self._preview_label.hide()
         right.addWidget(QLabel("Rules in this suggestion (name + five fields):", self))
         self._rules_table = QTableWidget(self)
         self._rules_table.setColumnCount(6)
@@ -840,6 +844,8 @@ class ExportPage(QFrame):
         title.setAlignment(Qt.AlignmentFlag.AlignLeft)
         export_btn = PrimaryPushButton("Save merged CSV", self)
         export_btn.clicked.connect(self._export_csv)
+        export_cli_btn = PrimaryPushButton("Export FortiGate CLI", self)
+        export_cli_btn.clicked.connect(self._export_cli)
         self._status = QLabel("", self)
         self._status.setWordWrap(True)
         self._btn_open_logs = PrimaryPushButton("Open Logs Folder", self)
@@ -851,6 +857,7 @@ class ExportPage(QFrame):
 
         layout.addWidget(title)
         layout.addWidget(export_btn)
+        layout.addWidget(export_cli_btn)
         layout.addWidget(self._btn_save_session)
         layout.addWidget(self._btn_load_session)
         layout.addWidget(self._btn_open_logs)
@@ -879,6 +886,24 @@ class ExportPage(QFrame):
                 QDesktopServices.openUrl(QUrl.fromLocalFile(base_dir))
             else:
                 QMessageBox.information(self, "Logs", "App data location not available")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", str(e))
+
+    def _export_cli(self) -> None:
+        if self.state.model.rowCount() == 0:
+            QMessageBox.information(self, "Nothing to export", "Load CSVs first")
+            return
+        out, _ = QFileDialog.getSaveFileName(self, "Export FortiGate CLI", os.getcwd(), "Text Files (*.txt)")
+        if not out:
+            return
+        rules = self.state.model._rules  # type: ignore[attr-defined]
+        try:
+            # For now, emit policies only; objects will be supported in a later step
+            cli_text = generate_fgt_cli(rules, catalog=None, include_objects=False)
+            with open(out, "w", encoding="utf-8") as f:
+                f.write(cli_text)
+            self._status.setText(f"Wrote CLI script to {out}")
+            QMessageBox.information(self, "Exported", f"Wrote CLI script to {out}")
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
 
@@ -976,16 +1001,26 @@ class DedupePage(QFrame):
         self._btn_continue.clicked.connect(self._confirm_and_continue)
 
         self._load_groups()
-        TeachingTip.create(
-            target=self._groups_list,
-            icon=InfoBarIcon.INFORMATION,
-            title='Duplicates found',
-            content='Groups are exact matches on srcaddr, dstaddr, srcintf, dstintf, service. Review and adjust if needed.',
-            isClosable=True,
-            tailPosition=TeachingTipTailPosition.RIGHT,
-            duration=5000,
-            parent=self
-        )
+
+    def showEvent(self, e) -> None:  # type: ignore[override]
+        super().showEvent(e)
+        # Defer TeachingTip to avoid geometry issues
+        QTimer.singleShot(350, self._show_tip)
+
+    def _show_tip(self) -> None:
+        try:
+            TeachingTip.create(
+                target=self._groups_list,
+                icon=InfoBarIcon.INFORMATION,
+                title='Duplicates found',
+                content='Groups are exact matches on srcaddr, dstaddr, srcintf, dstintf, service. Review and adjust if needed.',
+                isClosable=True,
+                tailPosition=TeachingTipTailPosition.RIGHT,
+                duration=5000,
+                parent=self
+            )
+        except Exception:
+            pass
 
     def _load_groups(self) -> None:
         self._groups_list.clear()
