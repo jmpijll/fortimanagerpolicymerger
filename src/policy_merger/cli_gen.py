@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import os
 import re
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple, Set
 
@@ -208,7 +209,10 @@ def _map_logtraffic(val: Optional[str]) -> str:
 # -----------------------------
 
 
-def _map_interface_tokens(value: Optional[str]) -> List[str]:
+DEFAULT_INTERFACE_EXCLUDES: Set[str] = {"_default", "VLAN1"}
+
+
+def _map_interface_tokens(value: Optional[str], excludes: Optional[Set[str]] = None) -> List[str]:
     if not value:
         return []
     s = " ".join(value.strip().split())
@@ -239,6 +243,10 @@ def _map_interface_tokens(value: Optional[str]) -> List[str]:
         if m not in seen:
             seen.add(m)
             out.append(m)
+    # filter excluded tokens
+    ex = excludes if excludes is not None else DEFAULT_INTERFACE_EXCLUDES
+    if ex:
+        out = [t for t in out if t not in ex]
     return out
 
 
@@ -342,14 +350,19 @@ def generate_ippools(pools: Dict[str, IpPool]) -> List[str]:
     return _emit_block("config firewall ippool", lines)
 
 
-def generate_policies(rules: Sequence[PolicyRule], name_overrides: Optional[List[str]] = None, catalog: Optional[ObjectCatalog] = None) -> List[str]:
+def generate_policies(
+    rules: Sequence[PolicyRule],
+    name_overrides: Optional[List[str]] = None,
+    catalog: Optional[ObjectCatalog] = None,
+    interface_excludes: Optional[Set[str]] = None,
+) -> List[str]:
     if not rules:
         return []
     lines: List[str] = []
     for idx, rule in enumerate(rules):
         r = rule.raw
-        srcintf = _map_interface_tokens(r.get("srcintf"))
-        dstintf = _map_interface_tokens(r.get("dstintf"))
+        srcintf = _map_interface_tokens(r.get("srcintf"), interface_excludes)
+        dstintf = _map_interface_tokens(r.get("dstintf"), interface_excludes)
         # Address/service mapping: prefer catalog names if provided
         if catalog is not None:
             addr_names: Set[str] = (
@@ -465,6 +478,7 @@ def generate_fgt_cli(
     catalog: Optional[ObjectCatalog] = None,
     include_objects: bool = False,
     name_overrides: Optional[List[str]] = None,
+    interface_excludes: Optional[Set[str]] = None,
 ) -> str:
     sections: List[str] = []
 
@@ -498,7 +512,24 @@ def generate_fgt_cli(
             if block:
                 sections.append("\n".join(block) + "\n")
 
-    policy_block = generate_policies(rules, name_overrides=overrides, catalog=catalog)
+    # resolve interface excludes from env if not supplied
+    if interface_excludes is None:
+        extra = os.environ.get("PM_INTERFACE_EXCLUDE", "").strip()
+        if extra:
+            try:
+                vals = [x for x in re.split(r"[,\s]+", extra) if x]
+                interface_excludes = set(DEFAULT_INTERFACE_EXCLUDES) | set(vals)
+            except Exception:
+                interface_excludes = set(DEFAULT_INTERFACE_EXCLUDES)
+        else:
+            interface_excludes = set(DEFAULT_INTERFACE_EXCLUDES)
+
+    policy_block = generate_policies(
+        rules,
+        name_overrides=overrides,
+        catalog=catalog,
+        interface_excludes=interface_excludes,
+    )
     if policy_block:
         sections.append("\n".join(policy_block) + "\n")
 
