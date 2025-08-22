@@ -63,7 +63,7 @@ from policy_merger.gui.models import PolicyTableModel
 from policy_merger.gui.merge_dialog import MergeDialog
 from policy_merger.gui.diff_dialog import DiffDialog
 from policy_merger.logging_config import configure_logging
-from policy_merger.cli_gen import generate_fgt_cli, ObjectCatalog
+from policy_merger.cli_gen import generate_fgt_cli, ObjectCatalog, _map_tokens_with_catalog
 
 
 @dataclass
@@ -452,17 +452,37 @@ class ReviewPage(QFrame):
             # Skip groups already decided
             if key_tuple in self.state.suggestion_group_decisions:
                 continue
-            union_tokens: set = set()
+            # Build union using catalog-aware names when available to avoid splitting multi-token objects
+            catalog = getattr(self.state, 'object_catalog', None)
+            union_names: list[str] = []
+            seen: set[str] = set()
             names: List[str] = []
             sources: set = set()
             for r in mg.rules:
-                union_tokens.update(x for x in (r.raw.get(mg.varying_field, '') or '').split() if x)
+                val = (r.raw.get(mg.varying_field, '') or '')
+                if catalog and mg.varying_field in ("srcaddr", "dstaddr"):
+                    known = set(catalog.addresses.keys()) | set(catalog.addr_groups.keys())
+                    parts = _map_tokens_with_catalog(val, known)
+                elif catalog and mg.varying_field == "service":
+                    known = set(catalog.services.keys()) | set(catalog.service_groups.keys())
+                    parts = _map_tokens_with_catalog(val, known)
+                else:
+                    parts = [p for p in val.split() if p]
+                # dominance
+                if mg.varying_field in ("srcaddr", "dstaddr") and any(p.lower() in ("all", "any") for p in parts):
+                    parts = ["all"]
+                if mg.varying_field == "service" and any(p.upper() == "ALL" for p in parts):
+                    parts = ["ALL"]
+                for p in parts:
+                    if p not in seen:
+                        seen.add(p)
+                        union_names.append(p)
                 names.append((r.raw.get('name','') or '').strip())
                 sources.add(r.source_fortigate)
             preview_lines = []
             for f in FIVE_FIELDS:
                 if f == mg.varying_field:
-                    preview_lines.append(f"{f}: {' '.join(sorted(union_tokens))}")
+                    preview_lines.append(f"{f}: {' '.join(union_names)}")
                 else:
                     preview_lines.append(f"{f}: {(mg.rules[0].raw.get(f,'') or '').strip()}")
             desc = f"{len(mg.rules)} rule(s) differ only in '{mg.varying_field}'. Proposed merge will union that field."
@@ -825,31 +845,34 @@ class ReviewPage(QFrame):
             if not rules or not varying:
                 return
             base = rules[0]
-            # Build union with dominance of 'all'/'any'
-            token_sets = []
-            has_all = False
-            has_any = False
-            for r in rules:
-                tokens = [x for x in (r.raw.get(varying, '') or '').split() if x]
-                lower = {t.lower() for t in tokens}
-                if 'all' in lower:
-                    has_all = True
-                if 'any' in lower:
-                    has_any = True
-                token_sets.append(tokens)
-            if has_all:
-                base.raw[varying] = 'all'
-            elif has_any:
-                base.raw[varying] = 'any'
+            # Build union using catalog-aware grouping; preserve order, no sorting
+            catalog = getattr(self.state, 'object_catalog', None)
+            parts_all: list[str] = []
+            if catalog and varying in ("srcaddr", "dstaddr"):
+                known = set(catalog.addresses.keys()) | set(catalog.addr_groups.keys())
+                for r in rules:
+                    parts_all.extend(_map_tokens_with_catalog((r.raw.get(varying, '') or ''), known))
+            elif catalog and varying == "service":
+                known = set(catalog.services.keys()) | set(catalog.service_groups.keys())
+                for r in rules:
+                    parts_all.extend(_map_tokens_with_catalog((r.raw.get(varying, '') or ''), known))
             else:
-                seen = set()
-                ordered: list[str] = []
-                for tokens in token_sets:
-                    for t in tokens:
-                        if t not in seen:
-                            seen.add(t)
-                            ordered.append(t)
-                base.raw[varying] = ' '.join(sorted(ordered))
+                for r in rules:
+                    parts_all.extend([p for p in (r.raw.get(varying, '') or '').split() if p])
+            # dominance
+            low = {p.lower() for p in parts_all}
+            if varying in ("srcaddr", "dstaddr") and ("all" in low or "any" in low):
+                base.raw[varying] = 'all'
+            elif varying == "service" and any(p.upper() == 'ALL' for p in parts_all):
+                base.raw[varying] = 'ALL'
+            else:
+                seen_names: set[str] = set()
+                ordered_names: list[str] = []
+                for p in parts_all:
+                    if p not in seen_names:
+                        seen_names.add(p)
+                        ordered_names.append(p)
+                base.raw[varying] = ' '.join(ordered_names)
             if merged_name:
                 base.raw['name'] = merged_name
             # Remove other rules in the group by raw-identity to survive model rebuilds
@@ -872,6 +895,35 @@ class ReviewPage(QFrame):
             # union five fields into the first rule (rule_a)
             merged = merge_fields(s.rule_a, s.rule_b, fields=("srcaddr", "dstaddr", "srcintf", "dstintf", "service"))
             s.rule_a.raw.update(merged)
+            # Normalize with catalog-aware grouping for addr/service fields
+            catalog = getattr(self.state, 'object_catalog', None)
+            if catalog:
+                addr_known = set(catalog.addresses.keys()) | set(catalog.addr_groups.keys())
+                svc_known = set(catalog.services.keys()) | set(catalog.service_groups.keys())
+                for fld in ("srcaddr", "dstaddr"):
+                    parts = _map_tokens_with_catalog(s.rule_a.raw.get(fld, ''), addr_known)
+                    if any(p.lower() in ("all", "any") for p in parts):
+                        s.rule_a.raw[fld] = 'all'
+                    else:
+                        # preserve order and de-dupe
+                        seen: set[str] = set()
+                        ordered: list[str] = []
+                        for p in parts:
+                            if p not in seen:
+                                seen.add(p)
+                                ordered.append(p)
+                        s.rule_a.raw[fld] = ' '.join(ordered)
+                parts = _map_tokens_with_catalog(s.rule_a.raw.get('service', ''), svc_known)
+                if any(p.upper() == 'ALL' for p in parts):
+                    s.rule_a.raw['service'] = 'ALL'
+                else:
+                    seen: set[str] = set()
+                    ordered: list[str] = []
+                    for p in parts:
+                        if p not in seen:
+                            seen.add(p)
+                            ordered.append(p)
+                    s.rule_a.raw['service'] = ' '.join(ordered)
             if merged_name:
                 s.rule_a.raw["name"] = merged_name
             removed_raw_ids.add(id(s.rule_b.raw))
@@ -964,8 +1016,33 @@ class ExportPage(QFrame):
             return
         rules = self.state.model._rules  # type: ignore[attr-defined]
         try:
-            # Emit policies only for now; objects will be derived from FMG object CSVs in a later step
+            # Pre-export validation against loaded configs (if provided)
             catalog = getattr(self.state, 'object_catalog', None)
+            if catalog is not None:
+                addr_known = set(catalog.addresses.keys()) | set(catalog.addr_groups.keys())
+                svc_known = set(catalog.services.keys()) | set(catalog.service_groups.keys())
+                unknown: list[str] = []
+                for r in rules:
+                    for fld, known in (("srcaddr", addr_known), ("dstaddr", addr_known)):
+                        parts = _map_tokens_with_catalog(r.raw.get(fld, ''), known)
+                        # dominance
+                        if any(p.lower() in ("all", "any") for p in parts):
+                            continue
+                        for p in parts:
+                            if p not in known:
+                                unknown.append(f"{fld}:{p} (rule: {r.raw.get('name','')})")
+                    parts = _map_tokens_with_catalog(r.raw.get('service',''), svc_known)
+                    if any(p.upper() == 'ALL' for p in parts):
+                        parts = ["ALL"]
+                    for p in parts:
+                        if p != 'ALL' and p not in svc_known:
+                            unknown.append(f"service:{p} (rule: {r.raw.get('name','')})")
+                if unknown:
+                    QMessageBox.critical(self, "Unknown objects",
+                                         "Some addresses/services are not found in loaded configs.\n"
+                                         + "\n".join(unknown[:50]) + ("\n..." if len(unknown) > 50 else ""))
+                    return
+            # Emit policies only for now
             cli_text = generate_fgt_cli(rules, catalog=catalog, include_objects=False)
             # If the generator inserted rename comments, inform user via status
             renamed = [ln for ln in cli_text.splitlines() if ln.startswith('# ') and '->' in ln]
