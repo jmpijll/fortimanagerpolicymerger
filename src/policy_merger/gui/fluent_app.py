@@ -321,6 +321,7 @@ class ReviewPage(QFrame):
         self._btn_deny = PrimaryPushButton("Keep all rules in this group", self)
         self._btn_accept.clicked.connect(self._accept_current_proposal)
         self._btn_deny.clicked.connect(self._deny_current_proposal)
+        self._name_edit.textChanged.connect(lambda: self._btn_accept.setEnabled(bool(self._name_edit.text().strip())))
         right.addWidget(self._btn_accept)
         right.addWidget(self._btn_deny)
 
@@ -807,44 +808,65 @@ class ReviewPage(QFrame):
             if not rules or not varying:
                 return
             base = rules[0]
-            union_tokens: set = set()
+            # Build union with dominance of 'all'/'any'
+            token_sets = []
+            has_all = False
+            has_any = False
             for r in rules:
-                union_tokens.update(x for x in (r.raw.get(varying, '') or '').split() if x)
-            base.raw[varying] = ' '.join(sorted(union_tokens))
+                tokens = [x for x in (r.raw.get(varying, '') or '').split() if x]
+                lower = {t.lower() for t in tokens}
+                if 'all' in lower:
+                    has_all = True
+                if 'any' in lower:
+                    has_any = True
+                token_sets.append(tokens)
+            if has_all:
+                base.raw[varying] = 'all'
+            elif has_any:
+                base.raw[varying] = 'any'
+            else:
+                seen = set()
+                ordered: list[str] = []
+                for tokens in token_sets:
+                    for t in tokens:
+                        if t not in seen:
+                            seen.add(t)
+                            ordered.append(t)
+                base.raw[varying] = ' '.join(sorted(ordered))
             if merged_name:
                 base.raw['name'] = merged_name
-            removed_ids = {id(r) for r in rules[1:]}
-            remaining = [r for r in self.state.model._rules if id(r) not in removed_ids]  # type: ignore[attr-defined]
+            # Remove other rules in the group by raw-identity to survive model rebuilds
+            removed_raw_ids = {id(r.raw) for r in rules[1:]}
+            remaining = [r for r in self.state.model._rules if id(r.raw) not in removed_raw_ids]  # type: ignore[attr-defined]
             from policy_merger.models import PolicySet as _PS
             ps = _PS(source_fortigate="MERGED", columns=self.state.model._columns)  # type: ignore[attr-defined]
             for r in remaining:
                 ps.add_rule(r.raw)
             self.state.model.set_policy_sets([ps])
             self.state.suggestion_group_decisions[key] = "accept"
-            self._proposal_index += 1
-            self._show_current_proposal()
+            # Recompute suggestions to avoid stale object references
+            self._refresh_suggestions()
             return
         # Legacy pair-based fallback
         suggestions = self._current_groups.get(key, [])
-        removed_ids = set()
+        removed_raw_ids = set()
         for s in suggestions:
             # union five fields into the first rule (rule_a)
             merged = merge_fields(s.rule_a, s.rule_b, fields=("srcaddr", "dstaddr", "srcintf", "dstintf", "service"))
             s.rule_a.raw.update(merged)
             if merged_name:
                 s.rule_a.raw["name"] = merged_name
-            removed_ids.add(id(s.rule_b))
+            removed_raw_ids.add(id(s.rule_b.raw))
             self.state.audit_log.append({"action": "guided_merge_accept", "reason": build_suggestion_reason(s)})
-        if removed_ids:
-            remaining = [r for r in self.state.model._rules if id(r) not in removed_ids]  # type: ignore[attr-defined]
+        if removed_raw_ids:
+            remaining = [r for r in self.state.model._rules if id(r.raw) not in removed_raw_ids]  # type: ignore[attr-defined]
             from policy_merger.models import PolicySet as _PS
             ps = _PS(source_fortigate="MERGED", columns=self.state.model._columns)  # type: ignore[attr-defined]
             for r in remaining:
                 ps.add_rule(r.raw)
             self.state.model.set_policy_sets([ps])
         self.state.suggestion_group_decisions[key] = "accept"
-        self._proposal_index += 1
-        self._show_current_proposal()
+        self._refresh_suggestions()
 
     def _deny_current_proposal(self) -> None:
         if self._proposal_index < 0 or self._proposal_index >= len(self._proposals):
