@@ -63,7 +63,7 @@ This phase focuses on building a user-friendly graphical interface on top of the
 *   **Step 2.3: Integration and Packaging**
     *   [x] Research & References (Context7 + web): Investigate PyInstaller best practices per OS (entitlements/signing on macOS, antivirus heuristics on Windows), and app update strategies; note in `docs/REFERENCES.md`.
     *   [x] Connect the GUI to the backend core logic from Phase 1.
-    *   [ ] Package the application into a standalone executable for Windows, macOS, and Linux using PyInstaller.
+    *   [x] Package the application into a standalone executable for Windows, macOS, and Linux using PyInstaller.
 
 ## Phase 3: Advanced Features and Refinements
 
@@ -74,9 +74,9 @@ This phase adds features that enhance the user experience and application robust
     *   [x] Allow users to save their merging session (loaded files, decisions made) and resume later.
 
 *   **Step 3.2: Testing and Quality Assurance**
-    *   [ ] Research & References (Context7 + web): Identify testing frameworks and tools (pytest, hypothesis for property tests, Qt test utilities), cross-platform CI options; record in `docs/REFERENCES.md`.
-    *   [ ] Write unit tests for the core parsing and merging logic.
-    *   [ ] Conduct manual testing of the GUI across different platforms.
+    *   [x] Research & References (Context7 + web): Identify testing frameworks and tools (pytest, hypothesis for property tests, Qt test utilities), cross-platform CI options; record in `docs/REFERENCES.md`.
+    *   [x] Write unit tests for the core parsing and merging logic (CSV loader, diff engine single-field grouping).
+    *   [x] Conduct manual testing of the GUI across platforms (first pass complete).
 
 *   **Step 3.3: Logging**
     *   [x] Research & References (Context7 + web): Compare logging libraries/formatters (stdlib logging, structlog), rotation strategies, and privacy controls; list references in `docs/REFERENCES.md`.
@@ -128,7 +128,7 @@ This phase addresses user feedback to improve transparency, guidance, and contro
 
 *   **Step 3.6.1: Research & Product Copy**
     *   [x] Research & References (Context7 + web): Guided flows, “human-friendly” microcopy, TeachingTip/InfoBar best practices.
-    *   [ ] Draft user-facing copy for dedupe review, merge suggestions, confirmations, and success/error states.
+    *   [x] Draft user-facing copy for dedupe review, merge suggestions, confirmations, and success/error states.
 
 *   **Step 3.6.2: Five-Field Exact Dedupe (Backend)**
     *   [x] Implement exact-match dedupe strictly on: `srcaddr`, `dstaddr`, `srcintf`, `dstintf`, `service`.
@@ -138,7 +138,7 @@ This phase addresses user feedback to improve transparency, guidance, and contro
 *   **Step 3.6.3: Dedupe Review UI**
     *   [x] Add a dedicated Dedupe Review step/panel listing duplicate groups with counts and a compact preview.
     *   [x] Provide actions: Keep First, Promote Selected (keep specific), Keep Both (rename).
-    *   [ ] Add summary banner (groups, total removed), Undo last action, and session persistence.
+    *   [x] Add summary banner (groups, total removed), Undo last action, and session persistence.
 
 *   **Step 3.6.4: Merge Suggestions on Five Fields (Backend)**
     *   [x] Compute “almost the same” suggestions using only the five fields; detect extra values in multi-value fields.
@@ -154,13 +154,13 @@ This phase addresses user feedback to improve transparency, guidance, and contro
     *   [x] Add contextual tooltips and InfoBars for important decisions, with dismissible hints.
 
 *   **Step 3.6.7: Audit & Transparency**
-    *   [ ] Maintain an in-app activity log of dedupe/merge decisions; allow export (CSV/JSON) for audit.
-    *   [ ] Provide filters (by action/type) and quick search within the log.
+    *   [x] Maintain an in-app activity log of dedupe/merge decisions; allow export (CSV/JSON) for audit.
+    *   [x] Provide filters (by action/type) and quick search within the log.
 
 *   **Step 3.6.8: Testing & QA**
-    *   [ ] Unit tests for five-field dedupe (exact) and five-field merge (union) behaviors.
-    *   [ ] Acceptance tests for guided flow (happy-path + cancel/undo) and session restore.
+    *   [x] Unit tests for five-field dedupe (exact) and five-field merge (union) behaviors.
+    *   [x] Acceptance tests for guided flow (happy-path + cancel/undo) and session restore (manual).
 
 *   **Step 3.6.9: Docs & Packaging**
-    *   [ ] Update README and TECH_SPECS with five-field rules and guided flow.
-    *   [ ] Update CHANGELOG; ensure packaging scripts still target Fluent UI entrypoint.
+    *   [x] Update README and TECH_SPECS with five-field rules and guided flow.
+    *   [x] Update CHANGELOG; ensure packaging scripts still target Fluent UI entrypoint.

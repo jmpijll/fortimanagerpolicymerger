@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.0.0] - 2025-08-13
 
 ### Added
 
@@ -22,16 +22,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 -   GUI scaffold with PyQt6; merge dialog; diff dialog; compare selected; export merged CSV.
 -   Batch merge CLI; session save/load; rotating file logging.
 -   Tests for CSV loader; About dialog; version set to 0.1.0.
- -   Fluent UI shell (`policy_merger.gui.fluent_app`) with Import/Review/Export pages wired to backend.
- -   Auto-deduplication on import and grouped similarity computation; Review page refresh and batch group actions.
- -   Guided Review details (pairs list, diff chips), compact/full column toggle, selected-row details panel.
- -   Basic theme toggle (light/dark) in Fluent UI.
- -   Accent color controls (system/pick) and logs folder shortcut; About page.
+ -   Fluent UI shell (`policy_merger.gui.fluent_app`) with Import/Dedupe/Suggestions/Final Review/Export pages.
+ -   Dedupe Review on five key fields with explicit confirmation and undo; audit logging.
+ -   Suggestions view presenting single-field merge proposals with tabular rule list, union preview, and required name input.
+ -   Final Review with inline editable table; Export to CSV.
+ -   Theme toggle (light/dark) and accent controls; About page.
 
 ### Changed
 
--   Completed Phase 3.5 guided UX and theming polish; plan updated to reflect completion.
+-   Completed Phase 3.5/3.6 guided UX and transparency; plan/docs updated.
 
 ### Fixed
 
--   Replaced invalid QFluentWidgets icon constant in Fluent UI navigation to avoid `AttributeError`.
+-   Various GUI crashes (icon constant, enums, export methods) and PyInstaller issues.

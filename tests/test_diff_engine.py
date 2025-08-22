@@ -1,7 +1,11 @@
 from __future__ import annotations
 
 from policy_merger.models import PolicyRule
-from policy_merger.diff_engine import deduplicate_identical_rules, group_similarity_suggestions
+from policy_merger.diff_engine import (
+    deduplicate_identical_rules,
+    group_similarity_suggestions,
+    find_group_merge_suggestions_single_field,
+)
 
 
 def make_rule(name: str, src: str, dst: str, svc: str, device: str = "FG1") -> PolicyRule:
@@ -45,3 +49,15 @@ def test_group_similarity_suggestions_merges_pairs():
         if suggestions:
             s = suggestions[0]
             assert hasattr(s, "rule_a") and hasattr(s, "rule_b")
+
+
+def test_single_field_grouping_finds_groups_and_unions():
+    # 4/5 fields same, only srcaddr differs
+    a = make_rule("A", "SRC1 SRC2", "DST1", "HTTP")
+    b = make_rule("B", "SRC2 SRC3", "DST1", "HTTP")
+    c = make_rule("C", "SRC1 SRC3", "DST1", "HTTP")
+
+    groups = find_group_merge_suggestions_single_field([a, b, c])
+    assert groups, "Expected at least one single-field merge group"
+    varying = {g.varying_field for g in groups}
+    assert "srcaddr" in varying

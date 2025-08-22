@@ -57,9 +57,9 @@ The application will be built with a decoupled architecture:
 -   Each policy rule will have attributes for all possible fields (name, source interface, destination address, service, action, etc.).
 -   A `PolicySet` class will manage a collection of rules loaded from a single CSV, including metadata like the source FortiGate name.
 
-### 4.1 Five-Field Identity and Similarity (Phase 3.6)
+### 4.1 Five-Field Identity and Single-Field Merge Suggestions (Phase 3.6)
 - Exact dedupe identity uses only: `srcaddr`, `dstaddr`, `srcintf`, `dstintf`, `service` (normalized, space-collapsed).
-- Similarity suggestions consider only these five fields; per-field Jaccard on tokenized values for multi-value fields; union merges suggested.
+- Merge suggestions are presented when four of the five fields match and one differs (name/policyid ignored). The differing field is unioned across the group; the other four remain unchanged.
 
 ## 5. CSV Format Assumptions and Parsing
 
@@ -131,7 +131,7 @@ The application will be built with a decoupled architecture:
 
 ## 12. Packaging and Versioning
 
--   Versioning: Semantic Versioning.
+-   Versioning: Semantic Versioning (current: 1.0.0).
 -   Packaging: PyInstaller one-file mode per platform with separate build profiles.
 -   Dependency policy: pin versions in `requirements.txt`; periodically refresh via `pip-tools` (future).
 

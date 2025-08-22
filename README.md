@@ -78,14 +78,16 @@ PYTHONPATH=src python -m policy_merger.batch_merge \
 
 ```bash
 PYTHONPATH=src .venv/bin/python -m policy_merger.gui.fluent_app
-
-Key UI features:
-- Import → auto-dedupe → Review → Export flow
-- Review: compact/full columns toggle, grouped suggestions, batch actions
-- Pair list with per-field diff chips and "Open Diff"
-- Selected-row details panel
-- Theme toggle and About page
 ```
+
+Guided flow:
+- Import → Dedupe Review → Suggestions → Final Review → Export
+- Dedupe Review: shows exact duplicates on five key fields with Keep First/Keep Both/Promote; explicit confirmation required
+- Suggestions: shows merge proposals where four of five key fields are identical and one differs (name ignored). You see:
+  - A tabular list of rules (name + five fields)
+  - A tabular preview of the resulting union for the differing field
+  - A required merged-name field, and Accept/Deny
+- Final Review: editable table for last adjustments before export
 
 ### Build app (macOS)
 
@@ -93,6 +95,10 @@ Key UI features:
 bash scripts/build_gui.sh
 open dist/PolicyMerger.app
 ```
+
+### Version
+
+Current application version: 1.0.0
 
 ## License
 
