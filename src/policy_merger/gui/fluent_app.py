@@ -947,6 +947,10 @@ class ExportPage(QFrame):
             # Emit policies only for now; objects will be derived from FMG object CSVs in a later step
             catalog = getattr(self.state, 'object_catalog', None)
             cli_text = generate_fgt_cli(rules, catalog=catalog, include_objects=False)
+            # If the generator inserted rename comments, inform user via status
+            renamed = [ln for ln in cli_text.splitlines() if ln.startswith('# ') and '->' in ln]
+            if renamed:
+                InfoBar.info(title='Policy names adjusted', content=f"{len(renamed)} duplicate names were suffixed to ensure uniqueness (max 35 chars).", orient=Qt.Orientation.Horizontal, isClosable=True, position=InfoBarPosition.TOP_RIGHT, duration=4000, parent=self)
             with open(out, "w", encoding="utf-8") as f:
                 f.write(cli_text)
             self._status.setText(f"Wrote CLI script to {out}")
