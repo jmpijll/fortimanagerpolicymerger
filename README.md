@@ -96,6 +96,11 @@ bash scripts/build_gui.sh
 open dist/PolicyMerger.app
 ```
 
+### CI/CD and Releases
+
+- Pushing a tag like `v1.0.0` triggers GitHub Actions to build macOS, Windows, and Linux packages and attach them to a GitHub Release.
+- Workflow: `.github/workflows/release.yml`.
+
 ### Version
 
 Current application version: 1.0.0
