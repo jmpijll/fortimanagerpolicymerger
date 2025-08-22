@@ -448,6 +448,10 @@ class ReviewPage(QFrame):
         merge_groups = find_group_merge_suggestions_single_field(self.state.model._rules)
         self._proposals = []
         for mg in merge_groups:
+            key_tuple = ('single_field', mg.varying_field, tuple(mg.base_key), tuple(mg.context))
+            # Skip groups already decided
+            if key_tuple in self.state.suggestion_group_decisions:
+                continue
             union_tokens: set = set()
             names: List[str] = []
             sources: set = set()
@@ -463,7 +467,7 @@ class ReviewPage(QFrame):
                     preview_lines.append(f"{f}: {(mg.rules[0].raw.get(f,'') or '').strip()}")
             desc = f"{len(mg.rules)} rule(s) differ only in '{mg.varying_field}'. Proposed merge will union that field."
             display_name = next((n for n in names if n), "(unnamed)")
-            self._proposals.append({'key': ('single_field', mg.varying_field, tuple(mg.base_key), tuple(mg.context)),
+            self._proposals.append({'key': key_tuple,
                                     'preview': "\n".join(preview_lines),
                                     'name': display_name,
                                     'desc': desc,
@@ -484,7 +488,20 @@ class ReviewPage(QFrame):
 
         self._btn_accept.setEnabled(True)
         self._btn_deny.setText("Keep separate (next)")
-        self._proposal_index = 0
+        # Resume from previous index if provided, otherwise start at 0
+        resume_idx = getattr(self, '_resume_from_index', None)
+        if resume_idx is None:
+            self._proposal_index = 0
+        else:
+            try:
+                delattr(self, '_resume_from_index')
+            except Exception:
+                pass
+            if resume_idx < 0:
+                resume_idx = 0
+            if resume_idx >= len(self._proposals):
+                resume_idx = len(self._proposals) - 1
+            self._proposal_index = resume_idx
         self._show_current_proposal()
 
     def _compare_selected(self) -> None:
@@ -844,7 +861,8 @@ class ReviewPage(QFrame):
                 ps.add_rule(r.raw)
             self.state.model.set_policy_sets([ps])
             self.state.suggestion_group_decisions[key] = "accept"
-            # Recompute suggestions to avoid stale object references
+            # Recompute suggestions and resume from next item
+            self._resume_from_index = self._proposal_index
             self._refresh_suggestions()
             return
         # Legacy pair-based fallback
@@ -866,6 +884,7 @@ class ReviewPage(QFrame):
                 ps.add_rule(r.raw)
             self.state.model.set_policy_sets([ps])
         self.state.suggestion_group_decisions[key] = "accept"
+        self._resume_from_index = self._proposal_index
         self._refresh_suggestions()
 
     def _deny_current_proposal(self) -> None:
@@ -875,8 +894,9 @@ class ReviewPage(QFrame):
         # Keep all rules separate, just record decision
         self.state.suggestion_group_decisions[key] = "deny"
         self.state.audit_log.append({"action": "guided_merge_deny", "group_key": str(key)})
-        self._proposal_index += 1
-        self._show_current_proposal()
+        # Recompute list skipping decided groups and resume from current index
+        self._resume_from_index = self._proposal_index
+        self._refresh_suggestions()
 
 
 class ExportPage(QFrame):
