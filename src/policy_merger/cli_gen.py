@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import re
-from typing import Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Dict, Iterable, List, Optional, Sequence, Tuple, Set
 
 from policy_merger.models import PolicyRule
 
@@ -136,6 +136,41 @@ def _emit_edit_block(name: str, setters: Iterable[str]) -> List[str]:
             lines.append(f"        {s}")
     lines.append("    next")
     return lines
+# Catalog-aware greedy mapping of tokens into known names
+def _map_tokens_with_catalog(value: Optional[str], known_names: Set[str]) -> List[str]:
+    if not value:
+        return []
+    s = value.strip()
+    if not s or not known_names:
+        return _split_values(value)
+    # Normalize whitespace and split to raw tokens without pairing
+    raw_tokens = [t for t in " ".join(s.split()).split(" ") if t]
+    i = 0
+    out: List[str] = []
+    n = len(raw_tokens)
+    while i < n:
+        matched = None
+        # Try longest span first
+        for j in range(n, i, -1):
+            cand = " ".join(raw_tokens[i:j])
+            if cand in known_names:
+                matched = cand
+                i = j
+                break
+        if matched is None:
+            # Fallback to single token
+            matched = raw_tokens[i]
+            i += 1
+        out.append(matched)
+    # De-duplicate while preserving order
+    seen: Set[str] = set()
+    uniq: List[str] = []
+    for t in out:
+        if t not in seen:
+            seen.add(t)
+            uniq.append(t)
+    return uniq
+
 # -----------------------------
 # Helpers for profiles/logging
 # -----------------------------
@@ -307,7 +342,7 @@ def generate_ippools(pools: Dict[str, IpPool]) -> List[str]:
     return _emit_block("config firewall ippool", lines)
 
 
-def generate_policies(rules: Sequence[PolicyRule], name_overrides: Optional[List[str]] = None) -> List[str]:
+def generate_policies(rules: Sequence[PolicyRule], name_overrides: Optional[List[str]] = None, catalog: Optional[ObjectCatalog] = None) -> List[str]:
     if not rules:
         return []
     lines: List[str] = []
@@ -315,9 +350,24 @@ def generate_policies(rules: Sequence[PolicyRule], name_overrides: Optional[List
         r = rule.raw
         srcintf = _map_interface_tokens(r.get("srcintf"))
         dstintf = _map_interface_tokens(r.get("dstintf"))
-        srcaddr = _split_values(r.get("srcaddr"))
-        dstaddr = _split_values(r.get("dstaddr"))
-        services = _split_values(r.get("service"))
+        # Address/service mapping: prefer catalog names if provided
+        if catalog is not None:
+            addr_names: Set[str] = set(catalog.addresses.keys()) | set(catalog.addr_groups.keys())
+            svc_names: Set[str] = set(catalog.services.keys()) | set(catalog.service_groups.keys())
+            srcaddr = _map_tokens_with_catalog(r.get("srcaddr"), addr_names)
+            dstaddr = _map_tokens_with_catalog(r.get("dstaddr"), addr_names)
+            services = _map_tokens_with_catalog(r.get("service"), svc_names)
+        else:
+            srcaddr = _split_values(r.get("srcaddr"))
+            dstaddr = _split_values(r.get("dstaddr"))
+            services = _split_values(r.get("service"))
+        # Dominance rules: if 'all'/'any' present in addresses or 'ALL' in services
+        if any(t.lower() == 'all' or t.lower() == 'any' for t in srcaddr):
+            srcaddr = ['all']
+        if any(t.lower() == 'all' or t.lower() == 'any' for t in dstaddr):
+            dstaddr = ['all']
+        if any(t.upper() == 'ALL' for t in services):
+            services = ['ALL']
         # name override (if provided)
         name_value = None
         if name_overrides is not None and 0 <= idx < len(name_overrides):
@@ -444,7 +494,7 @@ def generate_fgt_cli(
             if block:
                 sections.append("\n".join(block) + "\n")
 
-    policy_block = generate_policies(rules, name_overrides=overrides)
+    policy_block = generate_policies(rules, name_overrides=overrides, catalog=catalog)
     if policy_block:
         sections.append("\n".join(policy_block) + "\n")
 
