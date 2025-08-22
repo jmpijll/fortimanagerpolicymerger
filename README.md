@@ -1,110 +1,83 @@
 # FortiManager Policy Merger
 
-A multi-platform desktop application to analyze, compare, and merge firewall policy packages exported from FortiManager.
+A modern, cross‑platform desktop app to analyze, compare, and merge FortiManager policy packages (CSV). Built with Python + PyQt6 + QFluentWidgets.
 
-## About The Project
+### Why you’ll love it ✨
+- **Load many CSVs** at once and see everything in one place
+- **Spot duplicates** instantly on five key fields: `srcaddr`, `dstaddr`, `srcintf`, `dstintf`, `service`
+- **Get merge suggestions** where policies only differ in one of those five fields
+- **Decide with confidence**: Keep A, Keep B, Keep Both (rename), or Merge fields (union)
+- **Stay in control**: every dedupe/merge requires your explicit confirmation
+- **Final Review**: edit the resulting table before export
+- **Audit log**: track every action you took
 
-This tool is designed to simplify the process of consolidating firewall policies from multiple FortiGates. When managing a large estate of firewalls, it's common to have duplicated or slightly varied policies across different devices. This tool helps security administrators by:
+### Screens and flow 🧭
+1. **Import**: add multiple FortiManager CSV exports
+2. **Dedupe**: review exact duplicates on the five fields; confirm per-group
+3. **Suggestions**: one‑by‑one merge proposals for single‑field differences; name the result inline and accept/deny
+4. **Final Review**: editable table for last tweaks
+5. **Export**: write your consolidated CSV
+6. **Audit**: browse and export your session actions
 
-*   **Loading** multiple policy CSV exports.
-*   **Intelligently finding** similar or conflicting rules.
-*   **Providing a clear UI** to decide whether to **keep**, **discard**, or **merge** policies.
-*   **Exporting** a single, clean, and consolidated policy package.
+---
 
-The end goal is to produce a unified policy set that can be re-imported or used as a base for creating deployment scripts, reducing complexity and improving security posture.
+## Getting started 🚀
 
-## Features
+### Requirements
+- Python 3.10+
+- A virtual environment is recommended (`python -m venv .venv`)
 
-*   **Multi-File Import:** Load and process multiple CSV files at once.
-*   **Conflict Detection:** Automatically identifies rules that are identical or similar.
-*   **Interactive Merging:** A user-friendly GUI to resolve conflicts with options to:
-    *   Keep one rule and discard another.
-    *   Keep both by renaming one.
-    *   Merge fields from multiple rules into one.
-*   **Context-Aware:** Always shows the original FortiGate source for each policy.
-*   **Merged Export:** Outputs a single, clean CSV file of the consolidated policies.
-*   **(Future) CLI Script Generation:** Convert the final policy set into FortiGate CLI commands.
-
-## Getting Started
-
-*(This section will be updated as the project progresses)*
-
-### Prerequisites
-
-*   Python 3.10+
-
-### Installation
-
-1.  Clone the repo
-    ```sh
-    git clone [repo-url]
-    ```
-2.  Install dependencies
-    ```sh
-    pip install -r requirements.txt
-    ```
-
-## Roadmap and Docs
-
--   Development plan: see `PLAN.md`.
--   Technical details and architecture: see `TECH_SPECS.md`.
--   Changes over time: see `CHANGELOG.md`.
--   Sample input CSVs are in `exports/`.
-
-## Usage
-
-### CLI (temporary)
-
-Run a summary across CSVs:
+### Install dependencies
 ```bash
-PYTHONPATH=src python -m policy_merger.cli exports/RG-ASA-LZ-FW-20250813-065650.csv
+source .venv/bin/activate
+pip install -r requirements.txt
 ```
 
-Run the interactive merger and write output:
-```bash
-PYTHONPATH=src python -m policy_merger.interactive_cli \
-  exports/RG-ASA-LZ-FW-20250813-065650.csv exports/RG-NLD-CAP-FW-01-20250813-062755.csv \
-  --out merged/merged_policies.csv
-```
-
-Non-interactive batch merge (deduplicate identical rules):
-```bash
-PYTHONPATH=src python -m policy_merger.batch_merge \
-  exports/RG-ASA-LZ-FW-20250813-065650.csv exports/RG-NLD-CAP-FW-01-20250813-062755.csv \
-  --out merged/batch_merged.csv
-```
-
-### GUI (Fluent UI)
-
+### Run the GUI (Fluent UI)
 ```bash
 PYTHONPATH=src .venv/bin/python -m policy_merger.gui.fluent_app
 ```
+Guided flow: Import → Dedupe → Suggestions → Final Review → Export.
 
-Guided flow:
-- Import → Dedupe Review → Suggestions → Final Review → Export
-- Dedupe Review: shows exact duplicates on five key fields with Keep First/Keep Both/Promote; explicit confirmation required
-- Suggestions: shows merge proposals where four of five key fields are identical and one differs (name ignored). You see:
-  - A tabular list of rules (name + five fields)
-  - A tabular preview of the resulting union for the differing field
-  - A required merged-name field, and Accept/Deny
-- Final Review: editable table for last adjustments before export
-
-### Build app (macOS)
-
+### CLI tools (for quick checks) 🧪
+- Summary across CSVs:
 ```bash
-bash scripts/build_gui.sh
-open dist/PolicyMerger.app
+PYTHONPATH=src .venv/bin/python -m policy_merger.cli <csv1> <csv2> ...
+```
+- Interactive merger:
+```bash
+PYTHONPATH=src .venv/bin/python -m policy_merger.interactive_cli <csv1> <csv2> ... --out result.csv
+```
+- Batch dedupe (identical rules only):
+```bash
+PYTHONPATH=src .venv/bin/python -m policy_merger.batch_merge <csv1> <csv2> ... --out result.csv
 ```
 
-### CI/CD and Releases
+---
 
-- Pushing a tag like `v1.0.0` triggers GitHub Actions to build macOS, Windows, and Linux packages and attach them to a GitHub Release.
-- Workflow: `.github/workflows/release.yml`.
+## Releases 📦
+- Pushing a tag like `v1.0.0` triggers GitHub Actions to build Windows, macOS, and Linux packages and attach them to a GitHub Release.
+- Workflow file: `.github/workflows/release.yml`.
 
-### Version
+Current version: `1.0.0`
 
-Current application version: 1.0.0
+---
 
-## License
+## Docs 📚
+- Plan and status: `PLAN.md`
+- Technical specs: `TECH_SPECS.md`
+- Changes: `CHANGELOG.md`
+- Research references: `docs/REFERENCES.md`
 
-Distributed under the MIT License. See `LICENSE` for more information.
+---
+
+## Notes on data safety 🔒
+- `exports/` and `result.csv` are ignored and must never be committed.
+- If you fork, keep those paths in your `.gitignore`.
+
+---
+
+## Contributing 🤝
+We welcome feedback and ideas to make the UX even smoother. Open issues or PRs and let’s improve it together!
+
+License: MIT

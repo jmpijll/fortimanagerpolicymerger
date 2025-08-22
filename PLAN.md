@@ -87,14 +87,15 @@ This phase adds features that enhance the user experience and application robust
 This is a major feature for a future release, converting the merged policy into executable FortiGate CLI.
 
 *   **Step 4.1: CLI Conversion Engine**
-    *   [ ] Research & References (Context7 + web): Study FortiGate CLI syntax and ordering requirements for objects/policies, idempotency patterns, and rollback strategies; collect references in `docs/REFERENCES.md`.
-    *   [ ] Design the mapping from the internal data model to FortiGate CLI syntax.
+    *   [x] Research & References (Context7 + web): Study FortiGate CLI syntax and ordering requirements for objects/policies, idempotency patterns, and rollback strategies; collect references in `docs/REFERENCES.md` and spec in `TECH_SPECS.md#14`.
+    *   [ ] Design the mapping from the internal data model to FortiGate CLI syntax (finalize field mapping tables, name normalization rules).
     *   [ ] Implement converters for:
         *   Address Objects & Groups
         *   Service Objects & Groups
         *   VIPs and IP Pools
         *   Firewall Policies
-    *   [ ] Add a feature to export the generated script to a `.txt` or `.scr` file.
+    *   [ ] Export: write generated CLI to `.txt` with banner, deterministic ordering.
+    *   [ ] Tests: unit tests for each converter; fixture-driven golden file tests for full script output.
 
 ## Phase 3.5: UX Redesign & Guided Merge (New)
 
