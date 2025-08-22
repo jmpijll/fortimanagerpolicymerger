@@ -72,7 +72,10 @@ def parse_fgt_config_text(text: str, catalog: Optional[ObjectCatalog] = None) ->
             subnet_val = kv.get("subnet", "").split()
             if len(subnet_val) >= 2:
                 ip, mask = subnet_val[0], subnet_val[1]
-                catalog.addresses[name] = Address(name=name, subnet=(ip, mask), comment=_strip_quotes(kv.get("comment")))
+            else:
+                # FQDN, wildcard-fqdn, geography, or other types still need name presence for validation
+                ip, mask = "0.0.0.0", "0.0.0.0"
+            catalog.addresses[name] = Address(name=name, subnet=(ip, mask), comment=_strip_quotes(kv.get("comment")))
 
     # Address groups
     for block in _extract_blocks(lines, "config firewall addrgrp"):
@@ -114,6 +117,15 @@ def parse_fgt_config_text(text: str, catalog: Optional[ObjectCatalog] = None) ->
                 mappedport=_strip_quotes(kv.get("mappedport")),
                 comment=_strip_quotes(kv.get("comment")),
             )
+
+    # VIP Groups (treat as address groups for name presence)
+    for block in _extract_blocks(lines, "config firewall vipgrp"):
+        tbl = _parse_table(block)
+        for name, kv in tbl.items():
+            members = _split_members(kv.get("member"))
+            # store in addr_groups to include in known set for dstaddr validation
+            if name not in catalog.addr_groups:
+                catalog.addr_groups[name] = AddressGroup(name=name, members=members, comment=_strip_quotes(kv.get("comment")))
 
     # IP pools
     for block in _extract_blocks(lines, "config firewall ippool"):
