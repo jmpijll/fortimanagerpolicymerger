@@ -99,3 +99,8 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Project data (never commit)
+exports/
+/result.csv
+exampleconfig/
