@@ -19,7 +19,7 @@ def test_generate_simple_policy_only():
     rules = [
         make_rule(
             name="AllowWeb",
-            srcintf="port1",
+            srcintf="_default.VLAN1 sslvpn_tun_intf",
             dstintf="port2",
             srcaddr="HQ-NET",
             dstaddr="DC-NET",
@@ -34,7 +34,8 @@ def test_generate_simple_policy_only():
     cli = generate_fgt_cli(rules, catalog=None, include_objects=False)
     assert "config firewall policy" in cli
     assert "set name \"AllowWeb\"" in cli
-    assert "set srcintf \"port1\"" in cli
+    # interface mapping: zone.interface → both tokens, sslvpn_tun_intf → ssl.root
+    assert "set srcintf \"_default\" \"VLAN1\" \"ssl.root\"" in cli
     assert "set service \"HTTP\" \"HTTPS\"" in cli
     # even if field names vary, we set logtraffic mapping default and allow profiles if present
 

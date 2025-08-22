@@ -181,6 +181,45 @@ def _map_logtraffic(val: Optional[str]) -> str:
     return s
 
 
+# -----------------------------
+# Interface token mapping (FMG → FGT CLI)
+# -----------------------------
+
+
+def _map_interface_tokens(value: Optional[str]) -> List[str]:
+    if not value:
+        return []
+    s = " ".join(value.strip().split())
+    if not s:
+        return []
+    raw_tokens = [t for t in s.split(" ") if t]
+    mapped: List[str] = []
+    for tok in raw_tokens:
+        t = tok.strip()
+        if not t:
+            continue
+        # FMG placeholder for SSL VPN tunnel interface
+        if t.lower() == "sslvpn_tun_intf":
+            t = "ssl.root"
+        # Expand zone.interface shorthand: "_default.VLAN1" → "_default", "VLAN1"
+        if t.startswith("_") and "." in t and not t.startswith("\""):
+            zone, iface = t.split(".", 1)
+            if zone:
+                mapped.append(zone)
+            if iface:
+                mapped.append(iface)
+            continue
+        mapped.append(t)
+    # de-duplicate while preserving order
+    seen: set = set()
+    out: List[str] = []
+    for m in mapped:
+        if m not in seen:
+            seen.add(m)
+            out.append(m)
+    return out
+
+
 
 # -----------------------------
 # Generators per section
@@ -287,8 +326,8 @@ def generate_policies(rules: Sequence[PolicyRule]) -> List[str]:
     lines: List[str] = []
     for rule in rules:
         r = rule.raw
-        srcintf = _split_values(r.get("srcintf"))
-        dstintf = _split_values(r.get("dstintf"))
+        srcintf = _map_interface_tokens(r.get("srcintf"))
+        dstintf = _map_interface_tokens(r.get("dstintf"))
         srcaddr = _split_values(r.get("srcaddr"))
         dstaddr = _split_values(r.get("dstaddr"))
         services = _split_values(r.get("service"))
