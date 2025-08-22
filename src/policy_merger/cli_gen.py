@@ -352,7 +352,11 @@ def generate_policies(rules: Sequence[PolicyRule], name_overrides: Optional[List
         dstintf = _map_interface_tokens(r.get("dstintf"))
         # Address/service mapping: prefer catalog names if provided
         if catalog is not None:
-            addr_names: Set[str] = set(catalog.addresses.keys()) | set(catalog.addr_groups.keys())
+            addr_names: Set[str] = (
+                set(catalog.addresses.keys())
+                | set(catalog.addr_groups.keys())
+                | set(catalog.vips.keys())
+            )
             svc_names: Set[str] = set(catalog.services.keys()) | set(catalog.service_groups.keys())
             srcaddr = _map_tokens_with_catalog(r.get("srcaddr"), addr_names)
             dstaddr = _map_tokens_with_catalog(r.get("dstaddr"), addr_names)

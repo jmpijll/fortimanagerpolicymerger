@@ -461,7 +461,7 @@ class ReviewPage(QFrame):
             for r in mg.rules:
                 val = (r.raw.get(mg.varying_field, '') or '')
                 if catalog and mg.varying_field in ("srcaddr", "dstaddr"):
-                    known = set(catalog.addresses.keys()) | set(catalog.addr_groups.keys())
+                    known = set(catalog.addresses.keys()) | set(catalog.addr_groups.keys()) | set(catalog.vips.keys())
                     parts = _map_tokens_with_catalog(val, known)
                 elif catalog and mg.varying_field == "service":
                     known = set(catalog.services.keys()) | set(catalog.service_groups.keys())
@@ -849,7 +849,7 @@ class ReviewPage(QFrame):
             catalog = getattr(self.state, 'object_catalog', None)
             parts_all: list[str] = []
             if catalog and varying in ("srcaddr", "dstaddr"):
-                known = set(catalog.addresses.keys()) | set(catalog.addr_groups.keys())
+                known = set(catalog.addresses.keys()) | set(catalog.addr_groups.keys()) | set(catalog.vips.keys())
                 for r in rules:
                     parts_all.extend(_map_tokens_with_catalog((r.raw.get(varying, '') or ''), known))
             elif catalog and varying == "service":
@@ -898,7 +898,7 @@ class ReviewPage(QFrame):
             # Normalize with catalog-aware grouping for addr/service fields
             catalog = getattr(self.state, 'object_catalog', None)
             if catalog:
-                addr_known = set(catalog.addresses.keys()) | set(catalog.addr_groups.keys())
+                addr_known = set(catalog.addresses.keys()) | set(catalog.addr_groups.keys()) | set(catalog.vips.keys())
                 svc_known = set(catalog.services.keys()) | set(catalog.service_groups.keys())
                 for fld in ("srcaddr", "dstaddr"):
                     parts = _map_tokens_with_catalog(s.rule_a.raw.get(fld, ''), addr_known)
@@ -1019,7 +1019,7 @@ class ExportPage(QFrame):
             # Pre-export validation against loaded configs (if provided)
             catalog = getattr(self.state, 'object_catalog', None)
             if catalog is not None:
-                addr_known = set(catalog.addresses.keys()) | set(catalog.addr_groups.keys())
+                addr_known = set(catalog.addresses.keys()) | set(catalog.addr_groups.keys()) | set(catalog.vips.keys())
                 svc_known = set(catalog.services.keys()) | set(catalog.service_groups.keys())
                 unknown: list[str] = []
                 for r in rules:
